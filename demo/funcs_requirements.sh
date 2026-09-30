@@ -129,6 +129,7 @@ deploy_klio_requirements() {
     # exist. A dedicated bucket keeps Klio's data separate from the Barman
     # Cloud Plugin's "backups" bucket; demo/teardown.sh removes it again.
     kubectl delete --context "${context}" --ignore-not-found=true job/klio-bucket-init
+    # shellcheck disable=SC2154 # tmpl_klio_bucket_init_job is set by demo/setup.sh
     REGION="${region}" RUSTFS_RC_IMAGE="${RUSTFS_RC_IMAGE}" \
         envsubst '${REGION} ${RUSTFS_RC_IMAGE}' <"${tmpl_klio_bucket_init_job}" |
         kubectl apply --context "${context}" -f -

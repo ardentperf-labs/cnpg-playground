@@ -50,7 +50,7 @@ spec:
       operator: Exists
       effect: NoSchedule
     enablePodAntiAffinity: true
-    topologyKey: kubernetes.io/hostname
+    topologyKey: topology.kubernetes.io/zone
     podAntiAffinityType: required
 
   postgresql:
@@ -91,7 +91,6 @@ spec:
     parameters:
       barmanObjectName: objectstore-eu
       serverName: pg-eu
-
   # See https://cloudnative-pg.io/documentation/current/replica_cluster/#distributed-topology
   replica:
     self: pg-eu
@@ -116,7 +115,7 @@ spec:
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
-  name: pg-eu-backup
+  name: pg-eu-barman-backup
 spec:
   method: plugin
   schedule: '0 0 0 * * *'
