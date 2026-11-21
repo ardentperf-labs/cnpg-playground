@@ -51,18 +51,19 @@
         upgrade: yes
       become: yes
 
-    - name: Create flag file to indicate Cinnamon installation
+    - name: Mark the guest as a managed lab desktop
       file:
-        path: /etc/cinnamon-desktop-installed-by-cnpg-lab
+        path: /etc/desktop-installed-by-cnpg-lab
         state: touch
       become: yes
 
     - name: Install all required packages (less than 15 minutes on fast internet)
       apt:
         name:
-          - cinnamon-desktop-environment
-          - xrdp
-          - xorgxrdp
+          - ubuntu-desktop-minimal
+          - gdm3
+          - gnome-remote-desktop
+          - openssl
           - gnome-terminal
           - fonts-noto-color-emoji
           - firefox
@@ -134,23 +135,21 @@
       changed_when: false
       become: yes
 
-    - name: Enable Docker and RDP services
+    - name: Enable Docker
       systemd:
-        name: "{{ item }}"
+        name: docker
         enabled: yes
         state: started
-      loop:
-        - docker
-        - xrdp
       become: yes
 
-    - name: Select Cinnamon for the RDP Xorg session
-      copy:
-        dest: "{{ target_user_home }}/.xsession"
-        content: |
-          #!/bin/sh
-          exec cinnamon-session
-        mode: '0755'
+    - name: Generate a private Remote Login password on first install
+      shell: umask 077 && openssl rand -hex 24 > "$HOME/.cnpg-rdp-password"
+      args:
+        creates: "{{ target_user_home }}/.cnpg-rdp-password"
+
+    - name: Configure GNOME Remote Login for the next boot
+      command: bash "{{ playbook_dir }}/gnome-remote-login.sh" "{{ target_user }}" "{{ target_user_home }}"
+      become: yes
 
     - name: Create user application directories
       file:

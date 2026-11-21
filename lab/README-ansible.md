@@ -95,11 +95,11 @@ ansible students -i inventory.ini -m ping
 1. **Package Installation**:
    - Updates and upgrades packages
    - Installs all required packages in a single operation:
-     - cinnamon-desktop-environment (desktop environment)
-     - xrdp (remote desktop)
+     - ubuntu-desktop-minimal (desktop environment)
+     - gnome-remote-desktop (Remote Login)
      - docker.io (container runtime)
      - curl, jq, kubectx, btop, bat, Python/PyYAML and gettext
-   - Creates flag file `/etc/cinnamon-desktop-installed-by-cnpg-lab` after successful installation
+   - Creates flag file `/etc/desktop-installed-by-cnpg-lab` after successful installation
 3. **Docker Configuration**:
    - Adds user to docker group
    - Configures proxy settings if needed
@@ -135,7 +135,7 @@ ansible students -i inventory.ini -m ping
 
 ## Files Created
 
-- `/etc/cinnamon-desktop-installed-by-cnpg-lab` (flag file indicating Cinnamon was installed by this playbook)
+- `/etc/desktop-installed-by-cnpg-lab` (flag file indicating the lab desktop was installed by this playbook)
 - `/etc/systemd/system/docker.service.d/http-proxy.conf` (if proxy enabled)
 - `/etc/sysctl.d/99-inotify.conf` (file watch limits)
 - `~/.local/share/applications/firefox.desktop` (Firefox shortcut)
@@ -153,11 +153,10 @@ ansible students -i inventory.ini -m ping
 
 ## Ubuntu 26.04 validation
 
-The installer uses Ubuntu's `/usr/bin/python3`, Cinnamon,
-GNOME Terminal, color emoji fonts, and the Xorg backend for xrdp. A per-user
-`.xsession` selects Cinnamon explicitly. The desktop choice follows the
-[original lab requirements](https://ardentperf.com/2025/09/01/run-jepsen-against-cloudnativepg-to-see-sync-replication-prevent-data-loss/):
-reliable RDP plus color emoji in the terminal.
+The installer enables GDM and GNOME Remote Login on port 3389. Use the lab
+username and the password in `~/.cnpg-rdp-password` for the RDP connection,
+then the Ubuntu account password at the graphical login screen. Enable
+`/gfx` with FreeRDP 3. See the [GNOME reboot and login tests](validation/ubuntu-26.04/gnome/README.md).
 
 For automated local VM provisioning, set a user password first, then run
 `CNPG_LAB_NONINTERACTIVE=true bash lab/install.sh`. This skips the proxy and

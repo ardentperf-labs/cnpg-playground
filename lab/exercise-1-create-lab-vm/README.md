@@ -25,7 +25,7 @@ This creates a 4-vCPU, 16-GiB, 100-GiB Ubuntu 26.04 Server guest using the
 published cloud image. The host needs KVM access and at least 20 GiB available
 RAM. It forwards SSH to localhost:2222 and RDP to localhost:13389. Log in using
 the printed SSH command, clone this branch, and run `lab/install.sh` inside the
-VM. The generated RDP password is stored privately in the VM directory.
+VM. Use the generated password in the VM directory for both the RDP connection and the GNOME login screen. With FreeRDP 3, enable `/gfx`.
 
 ## Option 1: Run a VM on your laptop
 
@@ -84,6 +84,10 @@ git clone --branch lab/ubuntu-26.04 https://github.com/ardentperf-labs/cnpg-play
 ```bash
 bash cnpg-playground/lab/install.sh
 ```
+
+After reboot, connect using GNOME Remote Login. Use your Ubuntu username and
+the RDP password from `~/.cnpg-rdp-password` inside the guest. At the GNOME
+login screen, use your Ubuntu account password.
 
 *Important Note: You can re-run the `install.sh` scripts as many times as needed. If you run into unexpected problems, just re-run. You don't need to start over at the beginning.*
 

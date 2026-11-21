@@ -16,4 +16,9 @@ After=display-manager.service
 ExecStartPre=/bin/sh -c 'until busctl call org.gnome.DisplayManager /org/gnome/DisplayManager/Displays org.freedesktop.DBus.ObjectManager GetManagedObjects >/dev/null 2>&1; do sleep 1; done'
 ```
 
-This was a desktop migration test on the working lab. The published provisioning default is Cinnamon. An Ubuntu error-report dialog appeared on initial login and /var/crash contained a blueman-applet report.
+This was a desktop migration test on the working lab. At the time of this test the provisioning default was Cinnamon. An Ubuntu error-report dialog appeared on initial login and /var/crash contained a blueman-applet report.
+
+The lab installer now configures GNOME Remote Login by default. On the existing
+guest, the updated configuration survived reboot and accepted the generated
+RDP credential followed by the Ubuntu password at GDM. The [installed desktop](installer.png)
+shows the lab greeting, Wayland session and listener on TCP 3389.

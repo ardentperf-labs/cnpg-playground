@@ -54,9 +54,9 @@ if [[ "$ID" != ubuntu || "$VERSION_ID" != 26.04 ]]; then
     exit 1
 fi
 
-# Check if this is a server installation (not desktop) - unless Cinnamon was already installed by this script
-if [ -f "/etc/cinnamon-desktop-installed-by-cnpg-lab" ]; then
-    echo "✓ Cinnamon desktop was already installed by this script. Proceeding with installation."
+# Check if this is a server installation (not desktop) - unless the desktop was already installed by this script
+if [[ -f /etc/desktop-installed-by-cnpg-lab || -f /etc/cinnamon-desktop-installed-by-cnpg-lab ]]; then
+    echo "✓ Lab desktop was already installed by this script. Proceeding with installation."
 elif dpkg -l | awk '$1 == "ii" && $2 ~ /^xorg/ {found=1} END {exit !found}'; then
     echo "ERROR: This script is designed for Ubuntu 26.04 Server installations only."
     echo "Detected X11/Xorg installation. Please use Ubuntu 26.04 Server instead."
@@ -181,7 +181,7 @@ echo "Installation complete at: $(date)"
 echo .
 echo "You might need to restart the system for all changes to take effect. (In particular, the current user needs to pick up group changes.)"
 echo .
-echo "You can now connect via RDP as user '$USER' using the password."
+echo "You can now connect via RDP as user '$USER' using the password in ~/.cnpg-rdp-password, then your Ubuntu password at the GNOME login screen."
 echo .
 if [[ "${CNPG_LAB_NONINTERACTIVE:-false}" == true ]]; then
     echo "Unattended install complete. Reboot before using the desktop."

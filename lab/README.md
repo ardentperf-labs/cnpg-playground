@@ -21,8 +21,8 @@ In addition to the CNPG Playground, this also includes:
 - Optional sample clusters, exercises, and visual tools (WIP/TODO)
 - Ansible playbooks that can be used to preconfigure an entire classroom
 
-The supported local path is Ubuntu **26.04 LTS** on KVM, with Cinnamon over
-xrdp and GNOME Terminal for color emoji. See [the original desktop rationale](https://ardentperf.com/2025/09/01/run-jepsen-against-cloudnativepg-to-see-sync-replication-prevent-data-loss/).
+The supported local path is Ubuntu **26.04 LTS** on KVM, with GNOME on Wayland over
+GNOME Remote Login and GNOME Terminal for color emoji. See [the original desktop rationale](https://ardentperf.com/2025/09/01/run-jepsen-against-cloudnativepg-to-see-sync-replication-prevent-data-loss/).
 The Linux launcher in Exercise 1 provisions the VM; all lab installation and
 Kubernetes containers run inside that guest.
 

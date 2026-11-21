@@ -34,6 +34,8 @@ config = {'hostname': 'cnpg-lab', 'users': [{'name': 'ubuntu', 'groups': ['sudo'
           'sudo': 'ALL=(ALL) NOPASSWD:ALL', 'shell': '/bin/bash', 'lock_passwd': False,
           'ssh_authorized_keys': [pathlib.Path('id_ed25519.pub').read_text().strip()]}],
           'chpasswd': {'expire': False, 'users': [{'name': 'ubuntu', 'password': password, 'type': 'text'}]},
+          'write_files': [{'path': '/home/ubuntu/.cnpg-rdp-password', 'owner': 'ubuntu:ubuntu',
+                           'permissions': '0600', 'defer': True, 'content': password + '\n'}],
           'ssh_pwauth': False}
 pathlib.Path('user-data').write_text('#cloud-config\n' + json.dumps(config))
 pathlib.Path('meta-data').write_text('instance-id: cnpg-lab-2604\nlocal-hostname: cnpg-lab\n')

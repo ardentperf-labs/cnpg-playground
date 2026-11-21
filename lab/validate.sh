@@ -6,7 +6,8 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 export KUBECONFIG="$ROOT/k8s/kube-config.yaml"
 . /etc/os-release
 [[ "$ID" == ubuntu && "$VERSION_ID" == 26.04 ]]
-systemctl is-active docker xrdp
+systemctl is-active docker gdm gnome-remote-desktop
+ss -H -ltn 'sport = :3389' | grep -q LISTEN
 printf 'Ubuntu %s; %s CPUs; %s\n' "$VERSION_ID" "$(nproc)" "$(free -h | awk '/Mem:/ {print $2 " RAM"}')"
 for region in eu us; do
     context=kind-k8s-$region
