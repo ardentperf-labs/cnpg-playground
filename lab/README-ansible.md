@@ -156,7 +156,7 @@ ansible students -i inventory.ini -m ping
 The installer enables GDM and GNOME Remote Login on port 3389. Use the lab
 username and the password in `~/.cnpg-rdp-password` for the RDP connection,
 then the Ubuntu account password at the graphical login screen. Enable
-`/gfx` with FreeRDP 3. See the [GNOME reboot and login tests](validation/ubuntu-26.04/gnome/README.md).
+`/gfx` with FreeRDP 3.
 
 For automated local VM provisioning, set a user password first, then run
 `CNPG_LAB_NONINTERACTIVE=true bash lab/install.sh`. This skips the proxy and
