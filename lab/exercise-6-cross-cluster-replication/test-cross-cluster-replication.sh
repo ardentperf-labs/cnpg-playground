@@ -127,28 +127,17 @@ echo "Step 5: Verifying pg-us bootstrapped from pg-eu backup..."
 kubectl config use-context $US_CONTEXT > /dev/null
 
 echo "Checking if data from pg-eu exists on pg-us..."
-DB_COUNT=$(kubectl exec pg-us-1 -- psql -U postgres -t -c "SELECT count(*) FROM pg_database WHERE datname NOT IN ('template0', 'template1', 'postgres');" 2>/dev/null | tr -d '[:space:]')
-TABLE_COUNT=$(kubectl exec pg-us-1 -- psql -U postgres -t -c "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';" 2>/dev/null | tr -d '[:space:]')
-
-echo "  Databases: $DB_COUNT"
-echo "  Tables in public schema: $TABLE_COUNT"
-
-if [ "$TABLE_COUNT" -gt 0 ]; then
-    echo "✓ pg-us successfully bootstrapped from pg-eu backup"
-    echo ""
-    echo "Sample tables on pg-us:"
-    kubectl exec pg-us-1 -- psql -U postgres -c "SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'public' LIMIT 5;"
-else
-    echo "⚠ No tables found - cluster may have bootstrapped from empty backup"
+# Exercise 5 loads pgbench in the app database. Read it on the standby.
+verified=$(kubectl exec pg-us-1 -c postgres -- psql -XAt -v ON_ERROR_STOP=1 -d app \
+    -c 'SELECT pg_is_in_recovery() AND EXISTS (SELECT FROM pgbench_accounts LIMIT 1)')
+if [[ "$verified" != t ]]; then
+    echo "Expected a standby with replicated pgbench data" >&2
+    exit 1
 fi
-echo ""
+echo "✓ The US standby contains the application benchmark data"
 
-# Verify cluster is in recovery mode
-echo "Step 6: Verifying pg-us is in recovery mode..."
-kubectl exec pg-us-1 -- psql -U postgres -c "
-SELECT pg_is_in_recovery() AS is_replica, 
-       pg_last_wal_replay_lsn() AS last_replay_lsn;
-"
+kubectl exec pg-us-1 -c postgres -- psql -d app -c \
+    'SELECT pg_is_in_recovery() AS is_replica, pg_last_wal_replay_lsn() AS last_replay_lsn'
 echo ""
 
 # Verify certificates are being used
