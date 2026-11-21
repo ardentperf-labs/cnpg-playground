@@ -1,5 +1,7 @@
 # Local VM validation, 21 November 2026
 
+The [clean rebuild report](clean-rebuild/README.md) records the subsequent installation from a fresh server image, the restored shell greeting, k9s, and the full five-minute ASH workload.
+
 The lab ran inside a local x86-64 KVM guest with 4 vCPUs, 16 GiB RAM and a 100 GiB disk. The guest booted Ubuntu Server 26.04.1 LTS. This run used upstream cnpg-playground commit `2e2bbb7`, Kubernetes 1.37.0, CloudNativePG 1.30.2 and PostgreSQL 18.7.
 
 The guest initially tested the older installer. After purging the Nix packages, the updated installer completed, and a fresh playground deployed with the binaries in /usr/local/bin. The VM was reused for this migration test.
