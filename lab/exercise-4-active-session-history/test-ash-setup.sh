@@ -73,7 +73,7 @@ kubectl --context kind-k8s-eu apply -f lab/generated/pg-eu.yaml
 
 # Wait for the cluster to restart and be ready
 echo "Waiting for pg-eu cluster pods to be ready (this may take several minutes)..."
-kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu,cnpg.io/podRole=instance
 echo "All pg-eu pods are ready"
 echo ""
 

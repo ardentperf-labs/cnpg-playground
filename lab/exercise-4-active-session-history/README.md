@@ -93,8 +93,15 @@ The cluster will perform a rolling restart to load the pgsentinel extension.
 Wait for all pods to be ready:
 
 ```bash
-k wait --timeout 5m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+k wait --timeout 5m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu,cnpg.io/podRole=instance
 k wait --timeout 5m --for=condition=Ready cluster/pg-eu
+```
+
+Once the updated primary has loaded pgsentinel, install its SQL objects in the
+`postgres` database:
+
+```bash
+kc psql pg-eu -- -d postgres -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgsentinel'
 ```
 
 ### Create the SQL Functions
