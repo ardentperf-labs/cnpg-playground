@@ -429,7 +429,10 @@ spec:
 EOF
 
 # Wait for pod to be ready
-kubectl --context=kind-k8s-us wait --timeout=60s --for=condition=Ready pod/us-cross-cluster-client
+kubectl --context kind-k8s-us wait --timeout=2m --for=condition=Ready pod/us-cross-cluster-client
+# NodePort routing can become ready shortly after the client pod starts.
+timeout 60 bash -c 'until kubectl --context kind-k8s-us exec us-cross-cluster-client -- \
+    pg_isready -h pg-eu-pooler-rw.default.svc.cluster.local -p "$1" -U app -d app -t 2; do sleep 2; done' _ "$PGBOUNCER_PORT"
 ```
 
 **Step 4d: Test Connection from US to EU**
