@@ -21,7 +21,7 @@ trap cleanup EXIT
 log "Pre-flight check: Verifying database is running..."
 for region in eu us; do 
   CTX=$(get_cluster_context "${region}")
-  kubectl --context "${CTX}" wait --for=condition=Ready pod -l cnpg.io/cluster=pg-${region} --timeout=10s && \
+  kubectl --context "${CTX}" wait --for=condition=Ready pod -l cnpg.io/cluster=pg-${region},cnpg.io/podRole=instance --timeout=10s && \
     pass "${region}: PostgreSQL running" || { fail "${region}: PostgreSQL not ready. Run test-1-setup.sh first."; exit 1; }
 done
 
@@ -41,7 +41,7 @@ if "${ROOT}/demo/setup.sh" eu us; then pass "PostgreSQL re-setup"; else fail "Po
 
 for region in eu us; do
   CTX=$(get_cluster_context "${region}")
-  kubectl --context "${CTX}" wait --for=condition=Ready pod -l cnpg.io/cluster=pg-${region} --timeout=30s && \
+  kubectl --context "${CTX}" wait --for=condition=Ready pod -l cnpg.io/cluster=pg-${region},cnpg.io/podRole=instance --timeout=30s && \
     pass "${region}: PostgreSQL ready" || fail "${region}: PostgreSQL not ready"
 done
 

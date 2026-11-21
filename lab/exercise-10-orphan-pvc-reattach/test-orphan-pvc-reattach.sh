@@ -61,6 +61,9 @@ kubectl cnpg psql ${DEMO_CLUSTER} -- -c "
 echo ""
 
 echo "--- Step 4: Delete the cluster ---"
+# Keep the source names and volume bindings before deletion removes the PVCs.
+SOURCE_PVCS=$(kubectl get pvc -l "cnpg.io/cluster=$DEMO_CLUSTER" -o json)
+SOURCE_PRIMARY=$(kubectl get cluster "$DEMO_CLUSTER" -o jsonpath='{.status.currentPrimary}')
 kubectl delete cluster ${DEMO_CLUSTER}
 kubectl wait --for=delete pod/${DEMO_CLUSTER}-1 pod/${DEMO_CLUSTER}-2 pod/${DEMO_CLUSTER}-3 --timeout=120s || true
 echo ""
@@ -71,14 +74,7 @@ kubectl get pv -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,CLAIM
 echo ""
 
 echo "--- Step 5: Prepare PVs for rebinding ---"
-DEMO_PVS=$(kubectl get pv -o json | python3 -c "
-import json, sys
-pvs = json.load(sys.stdin)['items']
-for pv in pvs:
-    claim = pv.get('spec', {}).get('claimRef', {})
-    if claim.get('name', '').startswith('${DEMO_CLUSTER}-'):
-        print(pv['metadata']['name'])
-")
+DEMO_PVS=$(jq -er '.items | select(length == 6) | .[].spec.volumeName' <<< "$SOURCE_PVCS")
 
 for pv in $DEMO_PVS; do
   kubectl patch pv "$pv" --type=merge -p '{"spec":{"claimRef":null}}'
@@ -92,29 +88,22 @@ kubectl create namespace ${NEW_NS} --dry-run=client -o yaml | kubectl apply -f -
 echo ""
 
 echo "--- Step 7: Pre-create PVCs with static PV bindings ---"
-python3 - "$DEMO_PVS" <<'EOF' | kubectl apply -f -
+python3 - "$SOURCE_PVCS" "$SOURCE_PRIMARY" <<'EOF' | kubectl apply -f -
 import sys
 import yaml
-import subprocess
 import json
 
 NEW_CLUSTER = "pg-orphan-restored"
 NEW_NS      = "pg-restored"
 
-demo_pvs = sys.argv[1].split()
-
-pv_json = json.loads(subprocess.check_output(["kubectl", "get", "pv", "-o", "json"]))
-by_name = {pv["metadata"]["name"]: pv for pv in pv_json["items"]}
-
-# serial -> (instanceRole, data-pv-name, wal-pv-name)
 instances = {}
-for name in demo_pvs:
-    pv = by_name[name]
-    claim_name = pv["spec"]["claimRef"]["name"]  # pg-orphan-demo-<serial>[-wal]
+for pvc in json.loads(sys.argv[1])["items"]:
+    name = pvc["spec"]["volumeName"]
+    claim_name = pvc["metadata"]["name"]
     suffix = claim_name[len("pg-orphan-demo-"):]
     is_wal = suffix.endswith("-wal")
     serial = int(suffix[:-4]) if is_wal else int(suffix)
-    role = "primary" if serial == 2 else "replica"
+    role = "primary" if f"pg-orphan-demo-{serial}" == sys.argv[2] else "replica"
     entry = instances.setdefault(serial, [role, None, None])
     if is_wal:
         entry[2] = name
@@ -207,7 +196,10 @@ kubectl logs -n cnpg-system deployment/cnpg-controller-manager --since=5m \
 echo ""
 
 echo "--- Step 10: Verify data ---"
-kubectl cnpg psql ${NEW_CLUSTER} -n ${NEW_NS} -- -c "SELECT * FROM orphan_demo;"
+recovered=$(kubectl cnpg psql "${NEW_CLUSTER}" -n "${NEW_NS}" -- -At -v ON_ERROR_STOP=1 \
+  -c "SELECT note FROM orphan_demo WHERE id = 1")
+[[ "$recovered" == "written before cluster deletion" ]] || { echo "Recovery check failed" >&2; exit 1; }
+echo "Recovered row: $recovered"
 echo ""
 
 echo "=========================================="

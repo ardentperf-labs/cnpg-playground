@@ -32,7 +32,7 @@ for region in eu us; do
   
   # Test RustFS API
   MINIO_PORT=$((RUSTFS_BASE_PORT + $([ "$region" = "us" ] && echo 1 || echo 0)))
-  MINIO_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${MINIO_PORT}/ || echo "000")
+  MINIO_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${MINIO_PORT}/health/ready || echo "000")
   [ "${MINIO_STATUS}" = "200" ] && \
     pass "${region}: RustFS API responsive" || fail "${region}: RustFS API failed (HTTP ${MINIO_STATUS})"
 done
@@ -101,7 +101,7 @@ for region in eu us; do
   log "Testing region: ${region}"
   
   # PostgreSQL readiness
-  kubectl --context "${CTX}" wait --for=condition=Ready pod -l cnpg.io/cluster=pg-${region} --timeout=30s && \
+  kubectl --context "${CTX}" wait --for=condition=Ready pod -l cnpg.io/cluster=pg-${region},cnpg.io/podRole=instance --timeout=30s && \
     pass "${region}: PostgreSQL ready" || fail "${region}: PostgreSQL not ready"
   
   # SQL query test
