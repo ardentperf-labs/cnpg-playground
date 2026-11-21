@@ -159,6 +159,13 @@ The ASH dashboard provides two visualization panels:
 1. **Average Active Sessions** - Stacked bar chart showing average concurrency
 2. **Max Active Sessions** - Shows peak concurrency for each dimension
 
+From a separate terminal in the guest, start the EU port forward printed by
+`monitoring/setup.sh`. Leave this command running while you use Grafana.
+
+```bash
+kubectl port-forward service/grafana-service 3000:3000 -n grafana --context kind-k8s-eu
+```
+
 To import the dashboard:
 
 1. Open Grafana in your browser. In the CNPG Lab VM, Firefox has a bookmark for
@@ -309,6 +316,4 @@ The script automates all the manual steps you practiced:
 This script is primarily used to validate that the manual steps in this README are correct
 and can also be used for quickly setting up the exercise environment for demonstrations.
 
-Output is logged to `ash-setup_<timestamp>.log`.
-
-The script creates a log file with timestamp for troubleshooting.
+Output is logged to `ash-test_<timestamp>.log`.

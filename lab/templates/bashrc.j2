@@ -16,6 +16,42 @@ for completion in /usr/share/bash-completion/completions/kubectx /usr/share/bash
 done
 complete -F _kube_contexts c
 complete -F _kube_namespaces n
-printf '\nCloudNativePG Lab — Ubuntu 26.04 LTS\n'
-printf 'Start: scripts/setup.sh eu us; demo/setup.sh eu us; lab/render.sh\n'
-printf 'Explore: k9s, lazydocker, btop, kubectl cnpg status pg-eu\n\n'
+if [[ $- == *i* ]]; then
+    cat <<'CNPG_GREETING'
+
+**********************************************************************
+**                Welcome to the CloudNativePG Lab                  **
+**                                                                  **
+** ▣ Docker container  =  ⚙ Kubernetes node/server (KIND clusters)  **
+**                                                                  **
+**   ┌───────────────┐    ┌───────────────┐    ┌───────────────┐    **
+**   │  Docker       │    │  Docker       │    │  Docker       │    **
+**   │  Container    │    │  Container    │    │  Container    │    **
+**   │  ┌─────────┐  │    │  ┌─────────┐  │    │               │    **
+**   │  │  pod-1  │  │    │  │  pod-3  │  │    │ S3 API/Web UI │    **
+**   │  └─────────┘  │    │  └─────────┘  │    │               │    **
+**   │  ┌─────────┐  │    │  ┌─────────┐  │    │  {pg backup}  │    **
+**   │  │  pod-2  │  │    │  │  pod-4  │  │    │               │    **
+**   │  └─────────┘  │    │  └─────────┘  │    │ RustFS Object │    **
+**   │  Kubernetes   │    │  Kubernetes   │    │ Storage       │    **
+**   │  Node/Server  │    │  Node/Server  │    └───────────────┘    **
+**   └───────────────┘    └───────────────┘                         **
+**                                                                  **
+** A few useful commands:           <hint: try TAB to autocomplete> **
+**   bat - syntax-highlighted file viewer                           **
+**   btop - show system utilization (cpu, io, network, procs, etc)  **
+**   lazydocker - terminal UI for Docker: nodes/servers in this Lab **
+**   k9s - terminal UI for Kubernetes                               **
+**   k or kubectl - Kubernetes command line tool                    **
+**   kc or kubectl cnpg - CNPG plugin for kubectl                   **
+**   c or kubectx - switch between Kubernetes contexts              **
+**   n or kubens - switch between Kubernetes namespaces             **
+**                                                                  **
+** scripts/setup.sh eu us                                           **
+**                   creates k8s-eu and k8s-us Kubernetes clusters  **
+** demo/setup.sh eu us                                              **
+**                   creates pg-eu and pg-us CloudNativePG clusters **
+** lab/render.sh        writes editable PostgreSQL cluster manifests **
+**********************************************************************
+CNPG_GREETING
+fi
