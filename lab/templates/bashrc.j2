@@ -11,7 +11,7 @@ source <(kubectl completion bash)
 complete -o default -F __start_kubectl k
 source <(kubectl cnpg completion bash)
 complete -o default -F __start_kubectl-cnpg kc
-for completion in /usr/share/bash-completion/completions/kubectx /usr/share/bash-completion/completions/kubens; do
+for completion in /usr/share/bash-completion/completions/kubectx.bash /usr/share/bash-completion/completions/kubens.bash; do
     [[ ! -f "$completion" ]] || source "$completion"
 done
 complete -F _kube_contexts c
