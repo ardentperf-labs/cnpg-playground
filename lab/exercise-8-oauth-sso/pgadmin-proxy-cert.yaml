@@ -7,7 +7,7 @@
 # Prerequisites:
 #   - cert-manager installed (see Exercise 5)
 #   - pg-eu cluster running (the CA secret pg-eu-ca must exist)
-#   - pg-eu-oauth.yaml.patch applied (adds cert map=pgadmin-proxy to pg_hba)
+#   - pg-eu-oauth.yaml overlay applied (adds cert map=pgadmin-proxy to pg_hba)
 #
 # Apply with:
 #   kubectl apply -f lab/exercise-8-oauth-sso/pgadmin-proxy-cert.yaml

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Azure Ubuntu Server Creation Script for CloudNativePG Lab
-# This script creates a VM with Ubuntu 25.04 on ARM64 architecture
+# This script creates a VM with Ubuntu 26.04 on ARM64 architecture
 
 set -e
 
@@ -74,9 +74,9 @@ echo "Creating VM..."
 
 # Set image based on architecture
 if [[ "$ARCHITECTURE" == "arm64" ]]; then
-    IMAGE="Canonical:ubuntu-25_04:server-arm64:latest"
+    IMAGE="Canonical:ubuntu-26_04-lts:server-arm64:latest"
 else
-    IMAGE="Canonical:ubuntu-25_04:server:latest"
+    IMAGE="Canonical:ubuntu-26_04-lts:server:latest"
 fi
 
 az vm create \
@@ -114,13 +114,13 @@ echo
 echo "=== Setup Complete! ==="
 echo
 echo "Next steps:"
-echo "  ssh ubuntu@$PUBLIC_IP git clone https://github.com/ardentperf/cnpg-playground"
+echo "  ssh ubuntu@$PUBLIC_IP git clone --branch lab/ubuntu-26.04 https://github.com/ardentperf-labs/cnpg-playground"
 echo "  ssh -t ubuntu@$PUBLIC_IP bash cnpg-playground/lab/install.sh"
 echo
 read -p "Would you like to automatically run these next steps? (y/N): " RUN_NEXT_STEPS
 if [[ $RUN_NEXT_STEPS =~ ^[Yy]$ ]]; then
     echo "Cloning repository..."
-    ssh ubuntu@$PUBLIC_IP git clone https://github.com/ardentperf/cnpg-playground
+    ssh ubuntu@$PUBLIC_IP git clone --branch lab/ubuntu-26.04 https://github.com/ardentperf-labs/cnpg-playground
 
     echo "Running lab installation..."
     ssh -t ubuntu@$PUBLIC_IP bash cnpg-playground/lab/install.sh

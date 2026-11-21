@@ -41,7 +41,7 @@ What you'll learn:
     ```
 - **Free Microsoft account** (personal @outlook.com, @hotmail.com, or corporate)
   — a free Azure subscription is not required for Entra app registrations
-- `kubectl`, `helm`, and `patch` in your PATH
+- `kubectl`, `helm`, and Python with PyYAML in your PATH (installed by the lab installer)
 
 All commands should be run from the CNPG playground root directory (`~/cnpg-playground`).
 
@@ -174,14 +174,14 @@ to `pg-eu`. Substitute your actual Entra values before applying.
 You can either apply the patch file directly:
 
 ```bash
-patch -p1 < lab/exercise-8-oauth-sso/pg-eu-oauth.yaml.patch
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-8-oauth-sso/pg-eu-oauth.yaml
 sed -i \
   -e "s/ENTRA_TENANT_ID/<your-tenant-id>/g" \
   -e "s/ENTRA_APP_ID/<your-client-id>/g" \
-  demo/yaml/eu/pg-eu.yaml
+  lab/generated/pg-eu.yaml
 ```
 
-Or edit `demo/yaml/eu/pg-eu.yaml` by hand. The changes are:
+Or edit `lab/generated/pg-eu.yaml` by hand. The changes are:
 
 **1. Add the `entra-validator` extension** (in the `postgresql.extensions` list,
 after any existing extensions):
@@ -241,13 +241,13 @@ triggers when the client initiates SASL OAUTHBEARER (i.e., when `psql` is given
 Verify the result:
 
 ```bash
-git diff demo/yaml/eu/pg-eu.yaml
+cat lab/generated/pg-eu.yaml
 ```
 
 ### Apply and wait for rolling restart
 
 ```bash
-kubectl apply -f demo/yaml/eu/pg-eu.yaml
+kubectl apply -f lab/generated/pg-eu.yaml
 kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
 kubectl wait --timeout 5m  --for=condition=Ready cluster/pg-eu
 ```
@@ -534,8 +534,8 @@ kubectl --context kind-k8s-eu delete issuer pg-eu-ca-issuer
 kubectl --context kind-k8s-eu delete secret pgadmin-proxy-cert
 
 # Restore pg-eu.yaml to remove OAuth config, then apply
-git checkout demo/yaml/eu/pg-eu.yaml
-kubectl --context kind-k8s-eu apply -f demo/yaml/eu/pg-eu.yaml
+lab/render.sh
+kubectl --context kind-k8s-eu apply -f lab/generated/pg-eu.yaml
 ```
 
 ## Automation Script

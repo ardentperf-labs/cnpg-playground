@@ -37,11 +37,12 @@ jobs:
           echo "=== Verifying Docker works ==="
           docker ps
       
-      - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
-      
+      - name: Install lab dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq gettext-base python3-yaml
+          sudo bash lab/install-tools.sh
+
       - name: Show environment info
         run: |
           echo "=== System Info ==="
@@ -50,11 +51,11 @@ jobs:
           docker version
           echo "=== Available space ==="
           df -h | head -5
-          echo "=== Nix version ==="
-          nix --version
+          echo "=== kubectl version ==="
+          kubectl version --client
       
       - name: Run test-1-setup.sh (15-20 min)
-        run: nix develop --command ./test-1-setup.sh
+        run: ./test-1-setup.sh
       
       - name: Run test-2-teardown.sh (10-15 min)
-        run: nix develop --command ./test-2-teardown.sh
+        run: ./test-2-teardown.sh

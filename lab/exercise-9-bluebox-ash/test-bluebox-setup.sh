@@ -91,24 +91,10 @@ echo "Step 1: Apply PostGIS extension container patch"
 echo "=========================================="
 echo ""
 
-if grep -q "postgis-extension" demo/yaml/eu/pg-eu.yaml; then
-  echo "PostGIS extension container already in pg-eu.yaml — skipping patch"
-  PATCH_APPLIED=true
-else
-  echo "Applying pg-eu-bluebox.yaml.patch..."
-  if patch -p1 < lab/exercise-9-bluebox-ash/pg-eu-bluebox.yaml.patch; then
-    echo "Patch applied successfully"
-    PATCH_APPLIED=false
-  else
-    echo "ERROR: Failed to apply patch. Ensure Exercise 4's patch has been applied first."
-    exit 1
-  fi
-fi
-
-echo ""
-echo "Applying pg-eu cluster configuration..."
-kubectl apply -f demo/yaml/eu/pg-eu.yaml
-echo ""
+# Merge this exercise into the locally rendered upstream manifest.
+test -f lab/generated/pg-eu.yaml || { echo "Run lab/render.sh first" >&2; exit 1; }
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-9-bluebox-ash/pg-eu-bluebox.yaml
+kubectl --context kind-k8s-eu apply -f lab/generated/pg-eu.yaml
 
 echo "Waiting for pg-eu pods to be ready (rolling restart, may take several minutes)..."
 kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu

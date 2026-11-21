@@ -52,7 +52,7 @@ for region in "${REGIONS[@]}"; do
 
     echo "📈 Removing Grafana resources..."
     # Delete Grafana instance and dashboards
-    kubectl kustomize ${GIT_REPO_ROOT}/monitoring/grafana/ 2>/dev/null | \
+    kubectl kustomize ${REPO_ROOT}/monitoring/grafana/ 2>/dev/null | \
       kubectl --context ${CONTEXT_NAME} delete --ignore-not-found=true -f - 2>/dev/null || true
 
     # Delete Grafana operator
@@ -62,20 +62,20 @@ for region in "${REGIONS[@]}"; do
 
     echo "🔧 Removing kubelet monitoring resources..."
     kubectl --context ${CONTEXT_NAME} delete --ignore-not-found=true \
-      -f ${GIT_REPO_ROOT}/monitoring/prometheus-instance/servicemonitor-kubelet.yaml 2>/dev/null || true
+      -f ${REPO_ROOT}/monitoring/prometheus-instance/servicemonitor-kubelet.yaml 2>/dev/null || true
     
     echo "🔥 Removing Prometheus resources..."
-    kubectl kustomize ${GIT_REPO_ROOT}/monitoring/prometheus-instance 2>/dev/null | \
+    kubectl kustomize ${REPO_ROOT}/monitoring/prometheus-instance 2>/dev/null | \
       kubectl --context ${CONTEXT_NAME} delete --ignore-not-found=true -f - 2>/dev/null || true
-    kubectl kustomize ${GIT_REPO_ROOT}/monitoring/prometheus-operator 2>/dev/null | \
+    kubectl kustomize ${REPO_ROOT}/monitoring/prometheus-operator 2>/dev/null | \
       kubectl --context ${CONTEXT_NAME} delete --ignore-not-found=true -f - 2>/dev/null || true
     
     echo "🖥️  Removing node-exporter..."
-    kubectl kustomize ${GIT_REPO_ROOT}/monitoring/node-exporter 2>/dev/null | \
+    kubectl kustomize ${REPO_ROOT}/monitoring/node-exporter 2>/dev/null | \
       kubectl --context ${CONTEXT_NAME} delete --ignore-not-found=true -f - 2>/dev/null || true
     
     echo "📊 Removing kube-state-metrics..."
-    kubectl kustomize ${GIT_REPO_ROOT}/monitoring/kube-state-metrics 2>/dev/null | \
+    kubectl kustomize ${REPO_ROOT}/monitoring/kube-state-metrics 2>/dev/null | \
       kubectl --context ${CONTEXT_NAME} delete --ignore-not-found=true -f - 2>/dev/null || true
 
     echo "🗑️  Removing prometheus-operator namespace..."

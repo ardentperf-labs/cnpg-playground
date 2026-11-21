@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end smoke test for cnpg-playground - Part 2: Teardown & Recreation
-# Usage: ./test-2-teardown.sh  OR  nix develop -c ./test-2-teardown.sh
+# Usage: ./test-2-teardown.sh
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -37,7 +37,7 @@ for region in eu us; do
 done
 
 log "Recreating PostgreSQL clusters..."
-if LEGACY=true "${ROOT}/demo/setup.sh"; then pass "PostgreSQL re-setup"; else fail "PostgreSQL re-setup"; exit 1; fi
+if "${ROOT}/demo/setup.sh" eu us; then pass "PostgreSQL re-setup"; else fail "PostgreSQL re-setup"; exit 1; fi
 
 for region in eu us; do
   CTX=$(get_cluster_context "${region}")
@@ -79,10 +79,10 @@ for region in eu us; do
   ! kind get clusters | grep -qx "${CLUSTER_NAME}" && \
     pass "${region}: Cluster removed" || fail "${region}: Cluster still exists"
   
-  # Verify MinIO containers are removed
-  MINIO_NAME="${MINIO_BASE_NAME}-${region}"
+  # Verify RustFS containers are removed
+  MINIO_NAME="${RUSTFS_BASE_NAME}-${region}"
   ! docker ps -a --format '{{.Names}}' | grep -qx "${MINIO_NAME}" && \
-    pass "${region}: MinIO container removed" || fail "${region}: MinIO container still exists"
+    pass "${region}: RustFS container removed" || fail "${region}: RustFS container still exists"
 done
 
 cleanup

@@ -36,7 +36,7 @@ source "$(cd "$(dirname "$0")/.." && pwd)/scripts/common.sh"
 detect_running_regions "$@"
 
 # Add a target port for the port-forward, the port will be incremeted by 1 for each region
-port=3001
+port=3000
 
 for region in "${REGIONS[@]}"; do
     echo "-------------------------------------------------------------"
@@ -107,9 +107,9 @@ EOF
         kubectl --context ${CONTEXT_NAME} apply -f -
 
     # Restart the operator
-    if kubectl get ns cnpg-system &>/dev/null; then
-        kubectl rollout restart deployment -n cnpg-system cnpg-controller-manager
-        kubectl rollout status deployment -n cnpg-system cnpg-controller-manager
+    if kubectl --context "${CONTEXT_NAME}" get ns cnpg-system &>/dev/null; then
+        kubectl --context "${CONTEXT_NAME}" rollout restart deployment -n cnpg-system cnpg-controller-manager
+        kubectl --context "${CONTEXT_NAME}" rollout status deployment -n cnpg-system cnpg-controller-manager
     fi
 
     echo "-----------------------------------------------------------------------------------------------------------------"

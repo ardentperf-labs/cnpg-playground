@@ -1,0 +1,14 @@
+spec:
+  enableSuperuserAccess: true
+  postgresql:
+    extensions:
+      - name: pgsentinel
+        image:
+          reference: ghcr.io/ardentperf/pgsentinel:1.3.1-18-trixie
+    shared_preload_libraries:
+      - pgsentinel
+
+  monitoring:
+    customQueriesConfigMap:
+      - name: active-session-history
+        key: custom-queries

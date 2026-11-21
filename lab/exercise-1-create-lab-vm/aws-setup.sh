@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # AWS Ubuntu Server Creation Script for CloudNativePG Lab
-# This script creates an EC2 instance with Ubuntu 25.04 on ARM64 architecture
+# This script creates an EC2 instance with Ubuntu 26.04 on ARM64 architecture
 
 set -e
 
@@ -71,11 +71,11 @@ echo "✅ No existing instance found with name '$INSTANCE_NAME'"
 
 echo
 if [[ "$USE_ARM64" = "y" ]]; then
-    echo "Getting latest Ubuntu 25.04 ARM64 AMI..."
-    AMI_ID=$(aws ssm get-parameters --names /aws/service/canonical/ubuntu/server/25.04/stable/current/arm64/hvm/ebs-gp3/ami-id --region $REGION --query 'Parameters[0].Value' --output text)
+    echo "Getting latest Ubuntu 26.04 ARM64 AMI..."
+    AMI_ID=$(aws ssm get-parameters --names /aws/service/canonical/ubuntu/server/26.04/stable/current/arm64/hvm/ebs-gp3/ami-id --region $REGION --query 'Parameters[0].Value' --output text)
 else
-    echo "Getting latest Ubuntu 25.04 x86_64 AMI..."
-    AMI_ID=$(aws ssm get-parameters --names /aws/service/canonical/ubuntu/server/25.04/stable/current/amd64/hvm/ebs-gp3/ami-id --region $REGION --query 'Parameters[0].Value' --output text)
+    echo "Getting latest Ubuntu 26.04 x86_64 AMI..."
+    AMI_ID=$(aws ssm get-parameters --names /aws/service/canonical/ubuntu/server/26.04/stable/current/amd64/hvm/ebs-gp3/ami-id --region $REGION --query 'Parameters[0].Value' --output text)
 fi
 echo "AMI ID: $AMI_ID"
 
@@ -139,13 +139,13 @@ echo
 echo "=== Setup Complete! ==="
 echo
 echo "Next steps:"
-echo "  ssh ubuntu@$PUBLIC_IP git clone https://github.com/ardentperf/cnpg-playground"
+echo "  ssh ubuntu@$PUBLIC_IP git clone --branch lab/ubuntu-26.04 https://github.com/ardentperf-labs/cnpg-playground"
 echo "  ssh -t ubuntu@$PUBLIC_IP bash cnpg-playground/lab/install.sh"
 echo
 read -p "Would you like to automatically run these next steps? (y/N): " RUN_NEXT_STEPS
 if [[ $RUN_NEXT_STEPS =~ ^[Yy]$ ]]; then
     echo "Cloning repository..."
-    ssh ubuntu@$PUBLIC_IP git clone https://github.com/ardentperf/cnpg-playground
+    ssh ubuntu@$PUBLIC_IP git clone --branch lab/ubuntu-26.04 https://github.com/ardentperf-labs/cnpg-playground
 
     echo "Running lab installation..."
     ssh -t ubuntu@$PUBLIC_IP bash cnpg-playground/lab/install.sh

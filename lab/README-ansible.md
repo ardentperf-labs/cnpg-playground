@@ -1,4 +1,4 @@
-# Ansible Playbook for Ubuntu 25.04 Desktop Setup
+# Ansible Playbook for Ubuntu 26.04 Desktop Setup
 
 - [Prerequisites](#prerequisites)
 - [Usage](#usage)
@@ -12,11 +12,11 @@
 
 ---
 
-This Ansible playbook (`install-core.yml`) contains the core installation logic for setting up a desktop environment on Ubuntu 25.04 Server. It is designed to be called by the `install.sh` shell script wrapper, which handles prechecks and user interaction.
+This Ansible playbook (`install-core.yml`) contains the core installation logic for setting up a desktop environment on Ubuntu 26.04 Server. It is designed to be called by the `install.sh` shell script wrapper, which handles prechecks and user interaction.
 
 ## Prerequisites
 
-- Ubuntu 25.04 Server (not desktop) clean/fresh install on targets
+- Ubuntu 26.04 Server (not desktop) clean/fresh install on targets
 - SSH access to the targets
 - Sudo privileges on the targets
 - Ansible installed on the targets
@@ -98,14 +98,14 @@ ansible students -i inventory.ini -m ping
      - cinnamon-desktop-environment (desktop environment)
      - xrdp (remote desktop)
      - docker.io (container runtime)
-     - nix-bin (package manager)
+     - curl, jq, kubectx, btop, bat, Python/PyYAML and gettext
    - Creates flag file `/etc/cinnamon-desktop-installed-by-cnpg-lab` after successful installation
 3. **Docker Configuration**:
    - Adds user to docker group
    - Configures proxy settings if needed
-4. **Nix Configuration**:
-   - Adds experimental features
-   - Adds user to nix-users group
+4. **Command-line Tools**:
+   - Downloads official binaries to `/usr/local/bin` and verifies SHA-256 checksums
+   - Versions are pinned in `tool-versions.env`; rerun `install-tools.sh` to update
 5. **System Tuning**:
    - Increases file watch limits for kind clusters
 6. **Firefox Setup**:
@@ -117,7 +117,7 @@ ansible students -i inventory.ini -m ping
    - Creates autostart script for GNOME Terminal colors
 8. **Development Environment**:
    - Configures KUBECONFIG
-   - Sets up auto-entry into nix development environment
+   - Sets up aliases and shell completion
 
 ## Variables
 
@@ -137,11 +137,10 @@ ansible students -i inventory.ini -m ping
 
 - `/etc/cinnamon-desktop-installed-by-cnpg-lab` (flag file indicating Cinnamon was installed by this playbook)
 - `/etc/systemd/system/docker.service.d/http-proxy.conf` (if proxy enabled)
-- `/etc/nix/nix.conf` (with experimental features)
 - `/etc/sysctl.d/99-inotify.conf` (file watch limits)
 - `~/.local/share/applications/firefox.desktop` (Firefox shortcut)
 - `~/.config/autostart/firefox.desktop` (Firefox autostart)
-- `~/.mozilla/firefox/[profile]/policies.json` (Firefox Enterprise Policies)
+- `/etc/firefox/policies/policies.json` (Firefox Enterprise Policies)
 - `~/configure-desktop.sh` (Desktop configuration script)
 - `~/.config/autostart/configure-desktop.desktop` (Autostart entry)
 - Firefox profile with custom homepage and bookmarks toolbar
@@ -149,5 +148,30 @@ ansible students -i inventory.ini -m ping
 ## Notes
 
 - A reboot is recommended for all changes to take full effect
-- The user will be added to docker and nix-users groups
+- The user will be added to docker group
 - RDP access will be available after installation (port 3389) - ensure proper firewall rules are in place
+
+## Ubuntu 26.04 validation
+
+The installer uses Ubuntu's `/usr/bin/python3`, Cinnamon,
+GNOME Terminal, color emoji fonts, and the Xorg backend for xrdp. A per-user
+`.xsession` selects Cinnamon explicitly. The desktop choice follows the
+[original lab requirements](https://ardentperf.com/2025/09/01/run-jepsen-against-cloudnativepg-to-see-sync-replication-prevent-data-loss/):
+reliable RDP plus color emoji in the terminal.
+
+For automated local VM provisioning, set a user password first, then run
+`CNPG_LAB_NONINTERACTIVE=true bash lab/install.sh`. This skips the proxy and
+reboot prompts; reboot the guest afterwards. It does not print the password.
+
+## Tool installation without Nix
+
+Ubuntu packages provide Docker, curl, jq, kubectx/kubens, btop, bat, Git,
+gettext and Python/PyYAML. `install-tools.sh` downloads kubectl, Kind, the CNPG
+plugin, cmctl, Helm, k9s, lazydocker and stern from their official release sites.
+Each download is checked against the publisher's SHA-256 list. All binaries go
+to `/usr/local/bin`; versions are pinned in `tool-versions.env`.
+
+To update, edit that version file and run `sudo bash lab/install-tools.sh`.
+To upgrade an older Nix-based lab, rerun `lab/install.sh` to replace its managed
+shell configuration. Nix is no longer used; it can be uninstalled separately
+if no other projects need it.

@@ -30,10 +30,10 @@ kubectl delete issuer pg-eu-server-ca-issuer pg-eu-client-ca-issuer \
   --ignore-not-found=true 2>/dev/null || true
 
 # Revert configuration file
-git checkout demo/yaml/eu/pg-eu.yaml 2>/dev/null || true
+lab/render.sh
 
 # Apply clean config
-kubectl apply -f demo/yaml/eu/pg-eu.yaml 2>/dev/null || true
+kubectl apply -f lab/generated/pg-eu.yaml 2>/dev/null || true
 
 # Clean up temp files
 rm -rf /tmp/pg-certs 2>/dev/null || true

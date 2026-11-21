@@ -57,7 +57,7 @@ This pattern is essential for:
   infrastructure created in Exercise 5.
 - The `pg-eu` cluster must be running with cert-manager certificates
 - The three-tier PKI (Root CA, Intermediate CAs) must exist
-- The CNPG Playground must have MinIO configured for both US and EU regions
+- The CNPG Playground must have RustFS configured for both US and EU regions
 
 **Note**: If `pg-us` was deployed during initial cluster setup, Exercise 6 will
 automatically remove it at the start to ensure a clean demonstration of
@@ -87,12 +87,12 @@ kubectl --context=kind-k8s-us get cluster pg-us
 flowchart LR
     subgraph eu [EU Kubernetes Cluster - kind-k8s-eu]
         pgeu[pg-eu Cluster<br/>Primary<br/>Read-Write<br/>3 instances]
-        minioeu[MinIO-EU<br/>Backup Storage]
+        minioeu[RustFS-EU<br/>Backup Storage]
     end
     
     subgraph us [US Kubernetes Cluster - kind-k8s-us]
         pgus[pg-us Cluster<br/>Standby/DR<br/>Read-Only<br/>3 instances]
-        miniousend[MinIO-US<br/>Backup Storage]
+        miniousend[RustFS-US<br/>Backup Storage]
     end
     
     pgeu -->|"Backup via<br/>barman-cloud"| minioeu
@@ -102,7 +102,7 @@ flowchart LR
 
 **Key Points**:
 - pg-eu and pg-us run in **separate Kubernetes clusters** (kind-k8s-eu and kind-k8s-us)
-- pg-us bootstraps from pg-eu's backup in MinIO-EU (cross-cluster restore)
+- pg-us bootstraps from pg-eu's backup in RustFS-EU (cross-cluster restore)
 - Both clusters use the **same Root CA** for certificate trust
 - This demonstrates **disaster recovery** setup, not continuous replication
 - **Cross-cluster mTLS**: US clients can connect to EU PgBouncer using certificates from different intermediate CAs
@@ -154,7 +154,7 @@ where each region manages its own intermediate CAs but trusts a common root.
 
 ### Replication Flow
 
-1. **Bootstrap**: pg-us starts by recovering from pg-eu's backup in MinIO
+1. **Bootstrap**: pg-us starts by recovering from pg-eu's backup in RustFS
 2. **WAL Streaming**: pg-us connects to pg-eu to stream Write-Ahead Log (WAL) changes
 3. **Authentication**: pg-us presents its `streaming_replica` certificate to pg-eu
 4. **Verification**: pg-eu verifies the certificate using the shared Client CA
@@ -224,13 +224,13 @@ Patch the pg-us cluster definition to use the certificates:
 
 ```bash
 cd ~/cnpg-playground
-patch -p1 < lab/exercise-6-cross-cluster-replication/pg-us.yaml.patch
+python3 lab/patch-cluster.py lab/generated/pg-us.yaml lab/exercise-6-cross-cluster-replication/pg-us.yaml
 ```
 
 Review the changes:
 
 ```bash
-git diff demo/yaml/us/pg-us.yaml
+git diff lab/generated/pg-us.yaml
 ```
 
 ### Step 4: Deploy the pg-us Replica Cluster in US Cluster
@@ -239,7 +239,7 @@ Deploy the replica cluster in the US Kubernetes cluster:
 
 ```bash
 kubectl config use-context kind-k8s-us
-kubectl apply -f demo/yaml/us/pg-us.yaml
+kubectl apply -f lab/generated/pg-us.yaml
 ```
 
 Wait for pg-us to be ready (this will take several minutes as it bootstraps
@@ -281,8 +281,8 @@ kubectl delete cluster pg-us
 # Clean up any leftover resources
 kubectl delete pvc -l cnpg.io/cluster=pg-us
 
-# Clean MinIO backup data
-docker exec minio-us rm -rf /data/backups/pg-us
+# Clean RustFS backup data
+lab/object-store.sh us rm --recursive --force lab/backups/pg-us
 ```
 
 **1. Write data to pg-eu:**
@@ -519,7 +519,7 @@ kubectl --context=kind-k8s-us delete endpoints pg-eu-pooler-rw-external
 
 ### pg-us Certificate Configuration
 
-The patch adds this to `demo/yaml/us/pg-us.yaml`:
+The patch adds this to `lab/generated/pg-us.yaml`:
 
 ```yaml
 certificates:
@@ -555,7 +555,7 @@ externalClusters:
   plugin:
     name: barman-cloud.cloudnative-pg.io
     parameters:
-      barmanObjectName: minio-eu
+      barmanObjectName: objectstore-eu
       serverName: pg-eu
 ```
 
@@ -606,7 +606,7 @@ kubectl describe cluster pg-us
 ```
 
 **Common causes:**
-- MinIO credentials not configured
+- RustFS credentials not configured
 - Network connectivity between regions
 - Certificate not ready
 

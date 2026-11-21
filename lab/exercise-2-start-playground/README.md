@@ -15,7 +15,7 @@ Run this command to create infrastructure including S3-compatible storage and
 kubernetes clusters named `kind-k8s-eu` and `kind-k8s-us`:
 
 ```bash
-scripts/setup.sh
+scripts/setup.sh eu us
 ```
 
 Run this comand to deploy the CloudNativePG operator and create postgres clusters
@@ -23,8 +23,16 @@ named `pg-eu` and `pg-us` which both have three-node HA within their respective
 kubernetes clusters and also replicate data between the two kubernetes clusters:
 
 ```bash
-LEGACY=true demo/setup.sh
+demo/setup.sh eu us
+lab/render.sh
 ```
+
+The lab explicitly uses `eu us`; current upstream defaults to `eu na`.
+`lab/render.sh` writes editable Cluster manifests to `lab/generated/pg-eu.yaml`
+and `lab/generated/pg-us.yaml`, using the same templates as upstream setup.
+Subsequent exercises merge their YAML overlays into these files. Re-running
+`lab/render.sh` resets both files to the upstream baseline, so save any changes
+first. The lab uses the Barman Cloud plugin; do not enable `LEGACY=true`.
 
 A few useful tools to start exploring include `btop` to monitor server
 utilization, `lazydocker` to monitor the docker pods (aka k8s nodes),
@@ -87,7 +95,7 @@ Cluster Summary
 Name:                pg-eu
 Namespace:           default
 System ID:           7544528776135057437
-PostgreSQL Image:    ghcr.io/cloudnative-pg/postgresql:17-bookworm
+PostgreSQL Image:    (resolved from the PostgreSQL 18 image catalog)
 Primary instance:    pg-eu-1
 Primary start time:  2025-08-30 23:45:12 +0000 UTC (uptime 9m47s)
 Status:              Cluster in healthy state
@@ -169,7 +177,6 @@ ubuntu@cnpg1vm:~/cnpg-playground$ k edit cluster pg-eu
       max_connections: "100"
 
 
-Warning: Native support for Barman Cloud backups and recovery is deprecated and will be completely removed in CloudNativePG 1.28.0. Found usage in: spec.backup.barmanObjectStore, spec.externalClusters.0.barmanObjectStore, spec.externalClusters.1.barmanObjectStore. Please migrate existing clusters to the new Barman Cloud Plugin to ensure a smooth transition.
 
 cluster.postgresql.cnpg.io/pg-eu edited
 ```

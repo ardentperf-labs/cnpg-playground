@@ -28,3 +28,8 @@
 
 # Go workspace file
 go.work
+
+# Locally rendered lab manifests and validation artifacts
+/lab/generated/
+*.log
+__pycache__/

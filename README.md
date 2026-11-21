@@ -300,14 +300,12 @@ both the `kind-k8s-eu` and `kind-k8s-na` clusters.
 Ensure that you have the latest version of the `cnpg` plugin installed on your
 local machine.
 
-## Nix Flakes
+## Ubuntu lab installation
 
-Do you use Nix flakes? If you do, this package have a configured
-dev shell that can be used with:
-
-```
-nix develop .
-```
+For a complete local Ubuntu 26.04 desktop lab, follow [the lab guide](lab/README.md).
+The installer uses Ubuntu packages and checksum-verified official tool releases.
+There is no shell environment to activate. Tool versions are listed in
+[`lab/tool-versions.env`](lab/tool-versions.env).
 
 ## Using Linux or WSL2
 

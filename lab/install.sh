@@ -1,7 +1,7 @@
 #!/bin/bash
-# Ubuntu 25.04 Desktop Setup Script
+# Ubuntu 26.04 Desktop Setup Script
 #
-# This script is intended to run on a freshly installed Ubuntu 25.04 server. It
+# This script is intended to run on a freshly installed Ubuntu 26.04 server. It
 # installs a desktop environment for remote desktop access via RDP.
 #
 # WARNING: This script enables remote desktop access which may have security implications.
@@ -26,7 +26,7 @@ echo "**                                                  **"
 echo "**  This script will install a desktop environment  **"
 echo "**  for local use or for remote desktop access via  **"
 echo "**  RDP. The script must be executed on a freshly   **"
-echo "**  installed Ubuntu 25.04 Server which does NOT    **"
+echo "**  installed Ubuntu 26.04 Server which does NOT    **"
 echo "**  have a desktop environment already installed.   **"
 echo "**                                                  **"
 echo "**  WARNING: This script enables remote desktop     **"
@@ -45,11 +45,12 @@ echo "You are logged in as: $USER"
 echo "Starting script execution at: $(date)"
 echo .
 
-# Check if we're running on Ubuntu 25.04 Server
-if ! grep -q "Ubuntu 25.04" /etc/os-release; then
-    echo "ERROR: This script is designed for Ubuntu 25.04 Server only."
+# Check if we're running on Ubuntu 26.04 Server
+. /etc/os-release
+if [[ "$ID" != ubuntu || "$VERSION_ID" != 26.04 ]]; then
+    echo "ERROR: This script is designed for Ubuntu 26.04 Server only."
     echo "Current OS: $(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
-    echo "Please run this script on Ubuntu 25.04 Server."
+    echo "Please run this script on Ubuntu 26.04 Server."
     exit 1
 fi
 
@@ -57,12 +58,12 @@ fi
 if [ -f "/etc/cinnamon-desktop-installed-by-cnpg-lab" ]; then
     echo "✓ Cinnamon desktop was already installed by this script. Proceeding with installation."
 elif dpkg -l | awk '$1 == "ii" && $2 ~ /^xorg/ {found=1} END {exit !found}'; then
-    echo "ERROR: This script is designed for Ubuntu 25.04 Server installations only."
-    echo "Detected X11/Xorg installation. Please use Ubuntu 25.04 Server instead."
+    echo "ERROR: This script is designed for Ubuntu 26.04 Server installations only."
+    echo "Detected X11/Xorg installation. Please use Ubuntu 26.04 Server instead."
     exit 1
 fi
 
-echo "✓ Confirmed: Running on Ubuntu 25.04 Server"
+echo "✓ Confirmed: Running on Ubuntu 26.04 Server"
 echo .
 
 # Check if the current user has a password set by examining /etc/shadow
@@ -85,6 +86,10 @@ fi
 # Prompt for password if needed
 USER_PASSWORD=""
 if [ "$PASSWORD_NEEDED" = true ]; then
+    if [[ "${CNPG_LAB_NONINTERACTIVE:-false}" == true ]]; then
+        echo "ERROR: Set a login password with passwd before unattended installation."
+        exit 1
+    fi
     echo "Setting password for user '$USER'..."
     echo -n "Enter new password (input will be hidden): "
     read -s USER_PASSWORD
@@ -109,7 +114,10 @@ echo .
 
 # Prompt the user to configure a proxy if needed for internet access. (Optional)
 gateway=$(ip route | awk '/default/ {print $3}')
-read -p "Do you need to configure a proxy for internet access? [y/N]: " use_proxy
+use_proxy=n
+if [[ "${CNPG_LAB_NONINTERACTIVE:-false}" != true ]]; then
+    read -r -p "Do you need to configure a proxy for internet access? [y/N]: " use_proxy
+fi
 use_proxy=${use_proxy,,}  # to lowercase
 
 if [[ "$use_proxy" == "y" || "$use_proxy" == "yes" ]]; then
@@ -153,13 +161,10 @@ if [[ "$use_proxy" == "y" || "$use_proxy" == "yes" ]]; then
     ANSIBLE_VARS="use_proxy=true proxy_ip=$proxy_ip proxy_port=$proxy_port"
 fi
 
-# Add password variables if password needs to be set
+# Pass passwords over stdin, never in process arguments or Ansible logs.
 if [ "$PASSWORD_NEEDED" = true ]; then
-    if [ -n "$ANSIBLE_VARS" ]; then
-        ANSIBLE_VARS="$ANSIBLE_VARS set_user_password=true user_password='$USER_PASSWORD'"
-    else
-        ANSIBLE_VARS="set_user_password=true user_password='$USER_PASSWORD'"
-    fi
+    printf '%s:%s\n' "$USER" "$USER_PASSWORD" | sudo chpasswd
+    unset USER_PASSWORD USER_PASSWORD_CONFIRM
 fi
 
 # Run the Ansible playbook
@@ -178,6 +183,10 @@ echo "You might need to restart the system for all changes to take effect. (In p
 echo .
 echo "You can now connect via RDP as user '$USER' using the password."
 echo .
+if [[ "${CNPG_LAB_NONINTERACTIVE:-false}" == true ]]; then
+    echo "Unattended install complete. Reboot before using the desktop."
+    exit 0
+fi
 echo "Press Enter to reboot the system, or Ctrl+C to cancel..."
 read -r
 sudo_cmd reboot

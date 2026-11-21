@@ -70,23 +70,23 @@ k config current-context
 
 *(Output should be `kind-k8s-eu`.)*
 
-Apply the patch to `demo/yaml/eu/pg-eu.yaml` from the CNPG playground root directory:
+Apply the patch to `lab/generated/pg-eu.yaml` from the CNPG playground root directory:
 
 ```bash
 cd ~/cnpg-playground
-patch -p1 < lab/exercise-4-active-session-history/pg-eu.yaml.patch
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-4-active-session-history/pg-eu.yaml
 ```
 
 You can verify the changes with:
 
 ```bash
-git diff demo/yaml/eu/pg-eu.yaml
+cat lab/generated/pg-eu.yaml
 ```
 
 Apply the modified cluster configuration:
 
 ```bash
-k apply -f demo/yaml/eu/pg-eu.yaml
+k apply -f lab/generated/pg-eu.yaml
 ```
 
 The cluster will perform a rolling restart to load the pgsentinel extension.

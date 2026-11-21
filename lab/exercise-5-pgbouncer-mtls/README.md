@@ -201,19 +201,19 @@ The patch adds:
 Apply the patch:
 
 ```bash
-patch -p1 < lab/exercise-5-pgbouncer-mtls/pg-eu.yaml.patch
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-5-pgbouncer-mtls/pg-eu.yaml
 ```
 
 Verify the changes:
 
 ```bash
-git diff demo/yaml/eu/pg-eu.yaml
+cat lab/generated/pg-eu.yaml
 ```
 
 Apply the modified cluster configuration:
 
 ```bash
-k apply -f demo/yaml/eu/pg-eu.yaml
+k apply -f lab/generated/pg-eu.yaml
 ```
 
 The cluster will perform a rolling restart to apply the new certificate
@@ -653,28 +653,10 @@ using a Job or Pod. This:
 **Recommendation**: The test job pattern in `test-job.yaml` is the preferred
 approach for validating mTLS configurations in Kubernetes.
 
-### 7. Patch File Maintenance
+### 7. Configuration overlay maintenance
 
-**The Problem**: Patch files are sensitive to the exact state of the base file,
-including line numbers and surrounding context.
-
-**Mistake Made**: Created a patch against a modified `pg-eu.yaml` that had been
-changed by Exercise 4, causing line number conflicts.
-
-**Solution**:
-1. Always generate patches against a clean, known state of the base file
-2. Use `git checkout` to revert to clean state before creating patches
-3. Test patches immediately with `patch --dry-run` before committing
-4. Document which version/commit of the base file the patch is designed for
-
-**Command Pattern**:
-```bash
-# Revert to clean state
-git checkout demo/yaml/eu/pg-eu.yaml
-
-# Make changes, then generate patch
-diff -u /tmp/original.yaml modified.yaml > file.patch
-
-# Test the patch
-patch --dry-run -p1 < file.patch
-```
+Exercise overlays are YAML mappings merged into `lab/generated/pg-eu.yaml`.
+The merge preserves existing nested parameters and merges named extension/role
+lists by name. Authentication rule lists replace the previous list in order.
+This lets exercises build on one another without depending on line numbers in
+upstream templates. `lab/render.sh` explicitly resets both local manifests.

@@ -133,44 +133,10 @@ kubectl get secret pg-eu-server-cert pg-eu-server-ca pg-eu-client-ca \
   pg-eu-app-cert pg-eu-pooler-client-ca
 echo ""
 
-# Check if the patch has already been applied
-echo "=========================================="
-echo "Step 2: Applying cluster configuration patch"
-echo "=========================================="
-echo ""
-echo "Checking if pg-eu.yaml patch is already applied..."
-if grep -q "serverTLSSecret" demo/yaml/eu/pg-eu.yaml; then
-  echo "Patch already applied (certificates section found in pg-eu.yaml)"
-  PATCH_APPLIED=true
-else
-  echo "Patch not yet applied, will apply now"
-  PATCH_APPLIED=false
-fi
-echo ""
-
-# Apply the patch if needed
-if [ "$PATCH_APPLIED" = false ]; then
-  echo "Applying patch to demo/yaml/eu/pg-eu.yaml..."
-  if patch -p1 < lab/exercise-5-pgbouncer-mtls/pg-eu.yaml.patch; then
-    echo "Patch applied successfully"
-  else
-    echo "ERROR: Failed to apply patch"
-    exit 1
-  fi
-  
-  echo ""
-  echo "Patch changes:"
-  git diff demo/yaml/eu/pg-eu.yaml
-  echo ""
-else
-  echo "Skipping patch application (already applied)"
-  echo ""
-fi
-
-# Apply the modified cluster configuration
-echo "Applying modified pg-eu cluster configuration..."
-kubectl apply -f demo/yaml/eu/pg-eu.yaml
-echo ""
+# Merge this exercise into the locally rendered upstream manifest.
+test -f lab/generated/pg-eu.yaml || { echo "Run lab/render.sh first" >&2; exit 1; }
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-5-pgbouncer-mtls/pg-eu.yaml
+kubectl --context kind-k8s-eu apply -f lab/generated/pg-eu.yaml
 
 # Wait for the cluster to restart and be ready
 echo "Waiting for pg-eu cluster to restart with new certificates..."

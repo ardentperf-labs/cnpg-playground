@@ -40,7 +40,7 @@ check_cmd() {
 
 check_cmd kubectl
 check_cmd helm
-check_cmd patch
+check_cmd python3
 
 # Check cluster is accessible
 if ! kubectl --context "$CONTEXT" get nodes &>/dev/null; then
@@ -122,32 +122,11 @@ done
 # ── Step 2: Patch pg-eu.yaml ───────────────────────────────────────────────────
 echo "==> Patching pg-eu.yaml for Entra OAuth..."
 
-PG_EU_YAML="$REPO_DIR/demo/yaml/eu/pg-eu.yaml"
-PATCH_FILE="$SCRIPT_DIR/pg-eu-oauth.yaml.patch"
-
-# Apply the patch (allows re-running idempotently by checking if already applied)
-if patch --dry-run --forward -r /dev/null "$PG_EU_YAML" "$PATCH_FILE" &>/dev/null; then
-    # Create a temporary patched file with Entra values substituted
-    TEMP_YAML=$(mktemp)
-    patch --forward -r /dev/null -o "$TEMP_YAML" "$PG_EU_YAML" "$PATCH_FILE"
-    sed -i \
-        -e "s/ENTRA_TENANT_ID/${ENTRA_TENANT_ID}/g" \
-        -e "s/ENTRA_APP_ID/${ENTRA_CLIENT_ID}/g" \
-        "$TEMP_YAML"
-    cp "$TEMP_YAML" "$PG_EU_YAML"
-    rm -f "$TEMP_YAML"
-    echo "    Patch applied with Entra values."
-else
-    echo "    Patch already applied (or conflicts detected)."
-    echo "    Substituting Entra values in place..."
-    sed -i \
-        -e "s/ENTRA_TENANT_ID/${ENTRA_TENANT_ID}/g" \
-        -e "s/ENTRA_APP_ID/${ENTRA_CLIENT_ID}/g" \
-        "$PG_EU_YAML"
-fi
-
-# Apply the updated cluster manifest
-kubectl --context "$CONTEXT" apply -f "$PG_EU_YAML"
+export ENTRA_TENANT_ID ENTRA_CLIENT_ID
+# Merge this exercise into the locally rendered upstream manifest.
+test -f lab/generated/pg-eu.yaml || { echo "Run lab/render.sh first" >&2; exit 1; }
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-8-oauth-sso/pg-eu-oauth.yaml
+kubectl --context kind-k8s-eu apply -f lab/generated/pg-eu.yaml
 
 # Wait for rolling restart to complete
 echo "    Waiting for pg-eu cluster to become healthy (rolling restart may take ~2 min)..."
@@ -315,7 +294,7 @@ To clean up:
   kubectl --context $CONTEXT delete certificate pgadmin-proxy-cert
   kubectl --context $CONTEXT delete issuer pg-eu-ca-issuer
   kubectl --context $CONTEXT delete secret pgadmin-proxy-cert
-  # Restore pg-eu.yaml: git checkout demo/yaml/eu/pg-eu.yaml
-  # Then: kubectl --context $CONTEXT apply -f demo/yaml/eu/pg-eu.yaml
+  # Restore pg-eu.yaml: lab/render.sh
+  # Then: kubectl --context $CONTEXT apply -f lab/generated/pg-eu.yaml
 
 EOF

@@ -1,0 +1,9 @@
+spec:
+  enableSuperuserAccess: true
+  postgresql:
+    extensions:
+      - name: postgis
+        image:
+          reference: ghcr.io/cloudnative-pg/postgis-extension:3.6.2-18-trixie
+        ld_library_path:
+          - system

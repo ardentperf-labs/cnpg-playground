@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end smoke test for cnpg-playground - Part 1: Setup & Validation
-# Usage: ./test-1-setup.sh  OR  nix develop -c ./test-1-setup.sh
+# Usage: ./test-1-setup.sh
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -19,9 +19,9 @@ trap cleanup EXIT
 
 # Setup: infrastructure → monitoring → PostgreSQL  
 log "Setting up infrastructure (eu, us)...  start at $(date +%H:%M:%S)"
-if "${ROOT}/scripts/setup.sh"; then pass "Infrastructure setup finish at $(date +%H:%M:%S)"; else fail "Infrastructure setup"; exit 1; fi
+if "${ROOT}/scripts/setup.sh" eu us; then pass "Infrastructure setup finish at $(date +%H:%M:%S)"; else fail "Infrastructure setup"; exit 1; fi
 
-# Test infrastructure health (MinIO API + Kubernetes API)
+# Test infrastructure health (RustFS API + Kubernetes API)
 log "Testing infrastructure health..."
 for region in eu us; do
   CTX=$(get_cluster_context "${region}")
@@ -30,11 +30,11 @@ for region in eu us; do
   kubectl --context "${CTX}" get nodes && \
     pass "${region}: Kubernetes API responsive" || fail "${region}: Kubernetes API failed"
   
-  # Test MinIO API
-  MINIO_PORT=$((MINIO_BASE_PORT + $([ "$region" = "us" ] && echo 1 || echo 0)))
-  MINIO_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${MINIO_PORT}/minio/health/live || echo "000")
+  # Test RustFS API
+  MINIO_PORT=$((RUSTFS_BASE_PORT + $([ "$region" = "us" ] && echo 1 || echo 0)))
+  MINIO_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${MINIO_PORT}/ || echo "000")
   [ "${MINIO_STATUS}" = "200" ] && \
-    pass "${region}: MinIO API responsive" || fail "${region}: MinIO API failed (HTTP ${MINIO_STATUS})"
+    pass "${region}: RustFS API responsive" || fail "${region}: RustFS API failed (HTTP ${MINIO_STATUS})"
 done
 
 log "Setting up monitoring stack...  start at $(date +%H:%M:%S)"
@@ -92,7 +92,7 @@ done
 cleanup
 
 log "Deploying PostgreSQL clusters...  start at $(date +%H:%M:%S)"
-if "${ROOT}/demo/setup.sh"; then pass "PostgreSQL setup finish at $(date +%H:%M:%S)"; else fail "PostgreSQL setup"; exit 1; fi
+if "${ROOT}/demo/setup.sh" eu us; then pass "PostgreSQL setup finish at $(date +%H:%M:%S)"; else fail "PostgreSQL setup"; exit 1; fi
 
 # Test PostgreSQL health and metrics
 log "Testing PostgreSQL clusters..."

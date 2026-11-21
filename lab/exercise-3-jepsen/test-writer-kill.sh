@@ -4,18 +4,18 @@
 # for MIN_HEALTHY_REPLICAS_FOR_KILL replicas to be ready before killing the
 # primary (all replicas by default). It also sleeps for MIN_SECONDS_BETWEEN_KILLS
 # seconds between kills. The output is captured in a log file and can be used to
-# generate a report. Jepsen test results are uploaded to a minio bucket by the job
+# generate a report. Jepsen test results are uploaded to a S3 bucket by the job
 # spec from exercise 3
 #
 # Ths script automatically tears down and creates new clusters for each test. Any
 # configuration for testing needs to be done in the playground legacy CNPG config.
 #
-#   nano demo/yaml/eu/pg-eu-legacy.yaml
+#   nano lab/generated/pg-eu.yaml
 #
 # Download previous test results with firefox on the remote desktop. Then clear
-# the minio bucket before running the next test:
+# the S3 bucket before running the next test:
 #
-#   docker exec minio-eu rm -rf /data/jepsenpg      (make sure you've downloaded previous test results before running this)
+#   lab/object-store.sh eu rm --recursive --force lab/jepsenpg      (make sure you've downloaded previous test results before running this)
 #
 # Example flow for a long-run test:
 #
@@ -67,7 +67,7 @@ kubectl delete job jepsenpg
 
 # delete the existing cluster
 kubectl delete cluster pg-eu
-docker exec minio-eu rm -rf /data/backups/pg-eu
+lab/object-store.sh eu rm --recursive --force lab/backups/pg-eu
 
 test_number=1
 while true; do
@@ -82,7 +82,7 @@ while true; do
   done
 
   # create a new clean cluster
-  kubectl apply -f demo/yaml/eu/pg-eu-legacy.yaml
+  kubectl apply -f lab/generated/pg-eu.yaml
   kubectl wait --timeout 30m --for=condition=Ready cluster/pg-eu
 
   if [ -z "$MIN_HEALTHY_REPLICAS_FOR_KILL" ]; then
@@ -119,7 +119,7 @@ while true; do
 
   # delete the existing cluster
   kubectl delete cluster pg-eu
-  docker exec minio-eu rm -rf /data/backups/pg-eu
+  lab/object-store.sh eu rm --recursive --force lab/backups/pg-eu
 
   # jepsen should complete after cluster deletion, so wait up to 2 minutes before hard-killing the pod
   loop_exit_time=$(date -d "2 minutes" +%s)

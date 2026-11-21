@@ -1,0 +1,7 @@
+spec:
+  # Use certificates from US intermediate CAs (signed by same root as EU)
+  certificates:
+    serverTLSSecret: pg-us-server-cert
+    serverCASecret: pg-us-server-ca
+    clientCASecret: pg-us-client-ca
+    replicationTLSSecret: pg-us-replication-cert

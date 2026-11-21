@@ -11,19 +11,24 @@ Do you want to try the CNPG Playground - but you don't want to spend time tweaki
 
 The *CloudNativePG LAB* hands you a ready-to-use, batteries-included, runs-anywhere Virtual Machine with the CNPG Playground and some Lab Exercises.
 
-This is done with a **post-install bootstrap script** that transforms a clean Ubuntu 25.04 server into a fully functional **virtual desktop lab environment** accessible directly (with VirtualBox, etc) and accessible remotely via Remote Desktop.
+This is done with a **post-install bootstrap script** that transforms a clean Ubuntu 26.04 server into a fully functional **virtual desktop lab environment** accessible directly (with VirtualBox, etc) and accessible remotely via Remote Desktop.
 
 In addition to the CNPG Playground, this also includes:
 - Browser preconfigured with bookmarks for CNPG docs and Grafana monitoring
   dashboards based on Prometheus and Loki (WIP/TODO)
 - Useful CLI tools like `kubectl`, `btop`, `lazydocker`, `k9s`, `bat`, etc
-  (including aliases, shell completion, and the CNPG playground's `nix` devshell).
+  (including aliases and shell completion; no environment activation required).
 - Optional sample clusters, exercises, and visual tools (WIP/TODO)
 - Ansible playbooks that can be used to preconfigure an entire classroom
 
+The supported local path is Ubuntu **26.04 LTS** on KVM, with Cinnamon over
+xrdp and GNOME Terminal for color emoji. See [the original desktop rationale](https://ardentperf.com/2025/09/01/run-jepsen-against-cloudnativepg-to-see-sync-replication-prevent-data-loss/).
+The Linux launcher in Exercise 1 provisions the VM; all lab installation and
+Kubernetes containers run inside that guest.
+
 ## 🔧 Hardware Requirements
 
-You specifically need **Ubuntu 25.04 Server** and make sure you *do not install a desktop*.
+You specifically need **Ubuntu 26.04 Server** and make sure you *do not install a desktop*.
 
 Requirements for **your laptop**, to run locally with VirtualBox or another virtualization software:
 
@@ -36,7 +41,7 @@ Requirements of **the VM or cloud instance itself**:
 
 ```
 4 CPUs, 16GB memory, 100GB disk
-Ubuntu 25.04 Server (fresh install)
+Ubuntu 26.04 Server (fresh install)
 Outbound internet connection (proxies and custom CAs are supported)
 Inbound ports 22 and 3389 (port forwarding is fine)
 ```
@@ -46,10 +51,10 @@ Inbound ports 22 and 3389 (port forwarding is fine)
 
 For detailed instructions go to [Lab Exercise 1: Creating a CNPG Lab Virtual Machine](exercise-1-create-lab-vm/README.md)
 
-TLDR/summary: Run these two commands on a fresh Ubuntu 25.04 Server.
+TLDR/summary: Run these two commands on a fresh Ubuntu 26.04 Server.
 
 ```bash
-git clone https://github.com/ardentperf/cnpg-playground
+git clone --branch lab/ubuntu-26.04 https://github.com/ardentperf-labs/cnpg-playground
 ```
 
 ```bash

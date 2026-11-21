@@ -54,10 +54,10 @@ else
     echo "  No existing pg-us cluster found"
 fi
 
-# Clean up MinIO US backup data
-echo "  Cleaning MinIO-US backup data..."
-docker exec minio-us rm -rf /data/backups/pg-us 2>/dev/null || true
-echo "  ✓ MinIO-US cleaned"
+# Clean up RustFS US backup data
+echo "  Cleaning RustFS-US backup data..."
+lab/object-store.sh us rm --recursive --force lab/backups/pg-us 2>/dev/null || true
+echo "  ✓ RustFS-US cleaned"
 echo ""
 
 # Switch to EU context to check prerequisites
@@ -108,21 +108,10 @@ kubectl wait --timeout=2m --for=condition=Ready certificate/pg-us-app-cert
 echo "✓ pg-us certificates ready"
 echo ""
 
-# Apply pg-us cluster patch
-echo "Step 3: Applying pg-us cluster configuration..."
-if ! patch --dry-run -N -p1 < lab/exercise-6-cross-cluster-replication/pg-us.yaml.patch &>/dev/null; then
-    echo "Patch already applied or failed, reverting first..."
-    git checkout demo/yaml/us/pg-us.yaml 2>/dev/null || true
-fi
-patch -p1 < lab/exercise-6-cross-cluster-replication/pg-us.yaml.patch
-echo "✓ Patch applied"
-echo ""
-
-# Deploy pg-us cluster in US context
-echo "Step 4: Deploying pg-us replica cluster in US cluster..."
-kubectl config use-context $US_CONTEXT > /dev/null
-kubectl apply -f demo/yaml/us/pg-us.yaml
-echo ""
+# Merge this exercise into the locally rendered upstream manifest.
+test -f lab/generated/pg-eu.yaml || { echo "Run lab/render.sh first" >&2; exit 1; }
+python3 lab/patch-cluster.py lab/generated/pg-us.yaml lab/exercise-6-cross-cluster-replication/pg-us.yaml
+kubectl --context kind-k8s-us apply -f lab/generated/pg-us.yaml
 
 # Wait for pg-us to be ready
 echo "Waiting for pg-us cluster to be ready (this may take several minutes)..."

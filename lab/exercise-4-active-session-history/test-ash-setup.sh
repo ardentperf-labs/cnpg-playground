@@ -77,40 +77,10 @@ else
 fi
 echo ""
 
-# Check if the patch has already been applied
-echo "Checking if pg-eu.yaml patch is already applied..."
-if grep -q "pgsentinel" demo/yaml/eu/pg-eu.yaml; then
-  echo "Patch already applied (pgsentinel found in pg-eu.yaml)"
-  PATCH_APPLIED=true
-else
-  echo "Patch not yet applied, will apply now"
-  PATCH_APPLIED=false
-fi
-echo ""
-
-# Apply the patch if needed
-if [ "$PATCH_APPLIED" = false ]; then
-  echo "Applying patch to demo/yaml/eu/pg-eu.yaml..."
-  if patch -p1 < lab/exercise-4-active-session-history/pg-eu.yaml.patch; then
-    echo "Patch applied successfully"
-  else
-    echo "ERROR: Failed to apply patch"
-    exit 1
-  fi
-  
-  echo ""
-  echo "Patch changes:"
-  git diff demo/yaml/eu/pg-eu.yaml
-  echo ""
-else
-  echo "Skipping patch application (already applied)"
-  echo ""
-fi
-
-# Apply the modified cluster configuration
-echo "Applying modified pg-eu cluster configuration..."
-kubectl apply -f demo/yaml/eu/pg-eu.yaml
-echo ""
+# Merge this exercise into the locally rendered upstream manifest.
+test -f lab/generated/pg-eu.yaml || { echo "Run lab/render.sh first" >&2; exit 1; }
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-4-active-session-history/pg-eu.yaml
+kubectl --context kind-k8s-eu apply -f lab/generated/pg-eu.yaml
 
 # Wait for the cluster to restart and be ready
 echo "Waiting for pg-eu cluster pods to be ready (this may take several minutes)..."
@@ -124,23 +94,18 @@ kubectl wait --timeout 5m --for=condition=Ready cluster/pg-eu
 echo "Cluster pg-eu is ready"
 echo ""
 
-# Create the sanitize_sql function
-echo "Creating sanitize_sql function..."
-if kubectl cnpg psql pg-eu < lab/exercise-4-active-session-history/sanitize_sql.sql; then
-  echo "sanitize_sql function created successfully"
-else
-  echo "Note: sanitize_sql function creation had warnings (may already exist)"
-fi
-echo ""
-
-# Create the pgsentinel_poll_ash_data function
-echo "Creating pgsentinel_poll_ash_data function..."
-if kubectl cnpg psql pg-eu < lab/exercise-4-active-session-history/pgsentinel_poll_ash_data.sql; then
-  echo "pgsentinel_poll_ash_data function created successfully"
-else
-  echo "Note: pgsentinel_poll_ash_data function creation had warnings (may already exist)"
-fi
-echo ""
+# Wait for the updated instance to load pgsentinel, then install SQL objects.
+# Ready can still refer to the old pods immediately after the patch.
+deadline=$((SECONDS + 600))
+until kubectl cnpg psql pg-eu -- -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS pgsentinel'; do
+  if (( SECONDS >= deadline )); then
+    echo "Timed out waiting for pgsentinel to be available" >&2
+    exit 1
+  fi
+  sleep 5
+done
+kubectl cnpg psql pg-eu -- -v ON_ERROR_STOP=1 < lab/exercise-4-active-session-history/sanitize_sql.sql
+kubectl cnpg psql pg-eu -- -v ON_ERROR_STOP=1 < lab/exercise-4-active-session-history/pgsentinel_poll_ash_data.sql
 
 # Apply the Prometheus custom queries ConfigMap
 echo "Applying Prometheus custom queries ConfigMap..."
@@ -167,12 +132,14 @@ echo "Initializing pgbench with scale factor 100..."
 echo "This will create ~10 million rows and may take several minutes"
 echo "=========================================="
 echo ""
-kubectl cnpg pgbench pg-eu -- -i --scale 100
+kubectl cnpg pgbench pg-eu -- -i --scale "${PGBENCH_SCALE:-100}"
 
 echo ""
 echo "Waiting for pgbench initialization to complete..."
 echo "Checking status every 10 seconds..."
+deadline=$((SECONDS + 600))
 while true; do
+  (( SECONDS < deadline )) || { echo "pgbench initialization timed out" >&2; exit 1; }
   POD_STATUS=$(kubectl get pods -l cnpg.io/jobRole=pgbench -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
   if [ "$POD_STATUS" = "Succeeded" ] || [ "$POD_STATUS" = "Completed" ]; then
     echo "pgbench initialization complete"
@@ -202,7 +169,7 @@ echo "Starting pgbench in 5 seconds..."
 sleep 5
 echo ""
 
-kubectl cnpg pgbench pg-eu -- --client=4 --jobs=4 --rate=100 --progress=1 --time=300
+kubectl cnpg pgbench pg-eu -- --client=4 --jobs=4 --rate=100 --progress=1 --time="${PGBENCH_SECONDS:-300}"
 
 echo ""
 echo "=========================================="

@@ -7,7 +7,7 @@
 #
 # Prerequisites:
 #   - pgadmin-proxy-cert.yaml applied and cert ready
-#   - pg-eu-oauth.yaml.patch applied to pg-eu cluster
+#   - pg-eu-oauth.yaml overlay applied to pg-eu cluster
 #   - PostgreSQL roles created for your Entra users
 #
 # Install with:

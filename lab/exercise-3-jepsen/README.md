@@ -205,14 +205,14 @@ You should see something like this in the kubernetes job log for test failures:
 ```
 
 Full detailed Jepsen results are automatically uploaded to an object store bucket in
-`minio-eu` when the test completes. There’s a bookmark for `MinIO-EU` in Firefox (which
+`objectstore-eu` when the test completes. There’s a bookmark for `RustFS-EU` in Firefox (which
 automatically opens when you connect to the Remote Desktop).
 
 default username: `cnpg-eu`
 default password: `postgres5432-eu`
 [source](https://github.com/cloudnative-pg/cnpg-playground/blob/ae93e2a131f9d15be840ebc3268283d9b37df302/scripts/setup.sh#L36-L37)
 
-You can click the Firefox bookmark for minio-eu and then download the Jepsen test results
+You can click the Firefox bookmark for objectstore-eu and then download the Jepsen test results
 tarball from the browser into your Remote Desktop. After downloading the tarball, open
 the file browser from the launcher icon at the bottom of your Remote Desktop. Find the
 file in your Downloads folder, right click on it, then choose "Extract Here" to extract
@@ -256,7 +256,7 @@ Next, we will enable Postgres synchronous replication and repeat the test.
 ## Repeat the Test with Synchronous Replication Enabled
 
 In between tests, run `demo/teardown.sh` and then creating a clean new cluster with
-`LEGACY=true demo/setup.sh` ... so that we can start clean each time. Sometimes the chaos
+`demo/setup.sh eu us` ... so that we can start clean each time. Sometimes the chaos
 testing can make CNPG a little unhappy!
 
 ### Enable Synchronous Replication

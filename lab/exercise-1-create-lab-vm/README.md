@@ -3,14 +3,29 @@
 - [Option 1: Run a VM on your laptop](#option-1-run-a-vm-on-your-laptop)
   - [Confirm Laptop Power Settings](#confirm-laptop-power-settings)
   - [Install HAV-Capable Virtualization Software](#install-hav-capable-virtualization-software)
-  - [Download Ubuntu 25.04 Server ISO](#download-ubuntu-2504-server-iso)
+  - [Download Ubuntu 26.04 Server ISO](#download-ubuntu-2604-server-iso)
   - [Creating a VM and installing Ubuntu](#creating-a-vm-and-installing-ubuntu)
-  - [Converting the Ubuntu 25.04 Server into a CNPG Lab VM](#converting-the-ubuntu-2504-server-into-a-cnpg-lab-vm)
+  - [Converting the Ubuntu 26.04 Server into a CNPG Lab VM](#converting-the-ubuntu-2604-server-into-a-cnpg-lab-vm)
 - [Option 2: From your mac/linux, provision a compute instance from AWS or Azure](#option-2-from-your-maclinux-provision-a-compute-instance-from-aws-or-azure)
   - [Prerequisites](#prerequisites)
   - [AWS Setup and Teardown](#aws-setup-and-teardown)
   - [Azure Setup and Teardown](#azure-setup-and-teardown)
 - [Other Options](#other-options)
+
+## Local Linux/KVM quick start
+
+Install `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `curl`, and
+`openssh-client` on the host, then run:
+
+```bash
+bash lab/exercise-1-create-lab-vm/local-setup.sh
+```
+
+This creates a 4-vCPU, 16-GiB, 100-GiB Ubuntu 26.04 Server guest using the
+published cloud image. The host needs KVM access and at least 20 GiB available
+RAM. It forwards SSH to localhost:2222 and RDP to localhost:13389. Log in using
+the printed SSH command, clone this branch, and run `lab/install.sh` inside the
+VM. The generated RDP password is stored privately in the VM directory.
 
 ## Option 1: Run a VM on your laptop
 
@@ -38,14 +53,14 @@ should all be able to leverage Harware-Assisted Virtualization.
 On Linux, most desktop virtualization options use **KVM/QEMU under the hood**
 which leverage Hardware-Assisted Virtualization.
 
-### Download Ubuntu 25.04 Server ISO
+### Download Ubuntu 26.04 Server ISO
 
-Download the Ubuntu 25.04 Server installation ISO:
+Download the Ubuntu 26.04 Server installation ISO:
 
 https://ubuntu.com/download/server
 
 **⚠️ Do not download a Desktop installer! Make sure to get a Server installer!
-Make sure you have the right version! (25.04) ⚠️**
+Make sure you have the right version! (26.04) ⚠️**
 
 ### Creating a VM and installing Ubuntu
 
@@ -58,12 +73,12 @@ When installing Ubuntu:
 
 After Ubuntu is installed, make sure you have internet access by logging in and testing something like `curl example.com`
 
-### Converting the Ubuntu 25.04 Server into a CNPG Lab VM
+### Converting the Ubuntu 26.04 Server into a CNPG Lab VM
 
-Run these two commands to convert the Ubuntu 25.04 Server into a CNPG Lab VM:
+Run these two commands to convert the Ubuntu 26.04 Server into a CNPG Lab VM:
 
 ```bash
-git clone https://github.com/ardentperf/cnpg-playground
+git clone --branch lab/ubuntu-26.04 https://github.com/ardentperf-labs/cnpg-playground
 ```
 
 ```bash
@@ -75,7 +90,7 @@ bash cnpg-playground/lab/install.sh
 
 ## Option 2: From your mac/linux, provision a compute instance from AWS or Azure
 
-Automated scripts are available for mac and linux to create and manage Ubuntu 25.04 server instances on AWS and Azure. These scripts prompt for configuration variables with sensible defaults and handle all the setup and cleanup automatically. After provisioning cloud compute, they automatically convert the cloud instance into a CNPG Lab VM, after starting the instance.
+Automated scripts are available for mac and linux to create and manage Ubuntu 26.04 server instances on AWS and Azure. These scripts prompt for configuration variables with sensible defaults and handle all the setup and cleanup automatically. After provisioning cloud compute, they automatically convert the cloud instance into a CNPG Lab VM, after starting the instance.
 
 ### Prerequisites
 
@@ -87,16 +102,16 @@ Before running the scripts, ensure you have:
 
 **Setup:**
 ```bash
-bash lab/exercise-1-setup/aws-setup.sh
+bash lab/exercise-1-create-lab-vm/aws-setup.sh
 ```
 
 **Teardown:**
 ```bash
-bash lab/exercise-1-setup/aws-teardown.sh
+bash lab/exercise-1-create-lab-vm/aws-teardown.sh
 ```
 
 The AWS scripts will:
-- Create an EC2 instance with Ubuntu 25.04 on ARM64 architecture
+- Create an EC2 instance with Ubuntu 26.04 on ARM64 architecture
 - Configure security groups for SSH (port 22) and RDP (port 3389) access
 - Set up proper tagging for easy identification
 - Prompt for region, instance name, key pair, instance type, and disk size
@@ -106,16 +121,16 @@ The AWS scripts will:
 
 **Setup:**
 ```bash
-bash lab/exercise-1-setup/azure-setup.sh
+bash lab/exercise-1-create-lab-vm/azure-setup.sh
 ```
 
 **Teardown:**
 ```bash
-bash lab/exercise-1-setup/azure-teardown.sh
+bash lab/exercise-1-create-lab-vm/azure-teardown.sh
 ```
 
 The Azure scripts will:
-- Create a VM with Ubuntu 25.04 on ARM64 architecture
+- Create a VM with Ubuntu 26.04 on ARM64 architecture
 - Set up a new resource group
 - Configure network security for SSH and RDP access
 - Prompt for location, resource group name, VM name, VM size, and disk size
@@ -124,11 +139,11 @@ The Azure scripts will:
 
 ## Other Options
 
-If you're using windows then you can provision a cloud instance with Ubuntu 25.04
+If you're using windows then you can provision a cloud instance with Ubuntu 26.04
 Server from the console, then ssh and run the CNPG lab script to convert it.
 
-All you need is a freshly installed Ubuntu 25.04 server. There are lots of ways
+All you need is a freshly installed Ubuntu 26.04 server. There are lots of ways
 to do this. You can use virtualization software (like UTM or Proxmox) and you
 can use cloud compute providers (like oracle cloud or digital ocean or linode).
 
-Just clone this repo and run the `install.sh` script on any clean Ubuntu 25.04 server.
+Just clone this repo and run the `install.sh` script on any clean Ubuntu 26.04 server.

@@ -99,13 +99,13 @@ the extensions list):
 
 ```bash
 cd ~/cnpg-playground
-patch -p1 < lab/exercise-9-bluebox-ash/pg-eu-bluebox.yaml.patch
+python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-9-bluebox-ash/pg-eu-bluebox.yaml
 ```
 
 Verify the changes:
 
 ```bash
-git diff demo/yaml/eu/pg-eu.yaml
+cat lab/generated/pg-eu.yaml
 ```
 
 You should see the `postgis` extension container added below `pgsentinel`:
@@ -129,7 +129,7 @@ directory.
 ### Apply and wait for rolling restart
 
 ```bash
-k apply -f demo/yaml/eu/pg-eu.yaml
+k apply -f lab/generated/pg-eu.yaml
 k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
 k wait --timeout 5m  --for=condition=Ready cluster/pg-eu
 ```
@@ -458,8 +458,8 @@ kc psql pg-eu -- -c "DROP ROLE bluebox_admin; DROP ROLE bluebox_app;"
 To revert the PostGIS extension container patch:
 
 ```bash
-git checkout demo/yaml/eu/pg-eu.yaml
-k apply -f demo/yaml/eu/pg-eu.yaml
+lab/render.sh
+k apply -f lab/generated/pg-eu.yaml
 k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
 ```
 

@@ -49,7 +49,7 @@ kubectl delete secret pg-eu-root-ca --ignore-not-found=true 2>/dev/null || true
 
 # Revert pg-us.yaml
 echo "Reverting configuration changes..."
-git checkout demo/yaml/us/pg-us.yaml 2>/dev/null || true
+lab/render.sh
 
 # Restore original context
 kubectl config use-context $ORIGINAL_CONTEXT > /dev/null 2>&1
