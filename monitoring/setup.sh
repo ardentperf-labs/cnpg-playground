@@ -54,6 +54,15 @@ for region in "${REGIONS[@]}"; do
     kubectl --context ${CONTEXT_NAME} wait --for condition=established --timeout=60s \
       crd/servicemonitors.monitoring.coreos.com crd/prometheusrules.monitoring.coreos.com || true
 
+    # demo/setup.sh creates this monitor when monitoring is installed first.
+    # Install the same monitor if the lab already deployed the demo cluster.
+    if kubectl --context "${CONTEXT_NAME}" get cluster.postgresql.cnpg.io "pg-${region}" >/dev/null 2>&1; then
+        kubectl --context "${CONTEXT_NAME}" wait --for=condition=Established --timeout=60s \
+            crd/podmonitors.monitoring.coreos.com
+        REGION="${region}" envsubst '${REGION}' < "${PODMONITOR_TEMPLATE:-${REPO_ROOT}/demo/templates/podmonitor.yaml}" | \
+            kubectl --context "${CONTEXT_NAME}" apply -f -
+    fi
+
     echo "📊 Deploying kube-state-metrics..."
     kubectl kustomize ${REPO_ROOT}/monitoring/kube-state-metrics | \
       kubectl --context ${CONTEXT_NAME} apply --force-conflicts --server-side -f -
