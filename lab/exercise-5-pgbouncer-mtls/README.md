@@ -220,7 +220,7 @@ The cluster will perform a rolling restart to apply the new certificate
 configuration. Wait for all pods to be ready (this may take several minutes):
 
 ```bash
-k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu,cnpg.io/podRole=instance
 ```
 
 Wait for the cluster to be ready:
@@ -309,7 +309,7 @@ WHERE pid = pg_backend_pid();
 
 ### Test with pgbench
 
-Run pgbench workload through the pooler:
+Initialize the benchmark tables in the application-owned database, then run the workload through the pooler.
 
 ```bash
 kubectl exec pgbouncer-mtls-test -- \
@@ -318,7 +318,15 @@ kubectl exec pgbouncer-mtls-test -- \
       PGSSLCERT=/etc/secrets/client/tls.crt \
       PGSSLKEY=/etc/secrets/client/tls.key \
       PGSSLROOTCERT=/etc/secrets/ca/ca.crt \
-  pgbench -h pg-eu-pooler-rw -U app postgres -c 2 -j 2 -T 30 --progress=5
+  pgbench -h pg-eu-pooler-rw -U app app -i -s 10
+
+kubectl exec pgbouncer-mtls-test -- \
+  env PGPASSWORD="" \
+      PGSSLMODE=verify-full \
+      PGSSLCERT=/etc/secrets/client/tls.crt \
+      PGSSLKEY=/etc/secrets/client/tls.key \
+      PGSSLROOTCERT=/etc/secrets/ca/ca.crt \
+  pgbench -h pg-eu-pooler-rw -U app app -c 2 -j 2 -T 30 --progress=5
 ```
 
 ### Understanding the Certificate Flow

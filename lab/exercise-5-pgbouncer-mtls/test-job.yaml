@@ -37,11 +37,11 @@ spec:
             echo ""
             
             echo "Test 3: pgbench init..."
-            PGPASSWORD="" pgbench -h pg-eu-pooler-rw -U app postgres -i -s 10
+            PGPASSWORD="" pgbench -h pg-eu-pooler-rw -U app app -i -s 10
             echo ""
             
             echo "Test 4: pgbench workload..."
-            PGPASSWORD="" pgbench -h pg-eu-pooler-rw -U app postgres -c 2 -j 2 -T 30 --progress=5
+            PGPASSWORD="" pgbench -h pg-eu-pooler-rw -U app app -c 2 -j 2 -T 30 --progress=5
             echo ""
             
             echo "=========================================="

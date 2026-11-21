@@ -145,7 +145,7 @@ echo ""
 
 # Wait for pods to be ready
 echo "Waiting for pg-eu cluster pods to be ready (timeout: 10 minutes)..."
-kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu,cnpg.io/podRole=instance
 echo "All pg-eu pods are ready"
 echo ""
 

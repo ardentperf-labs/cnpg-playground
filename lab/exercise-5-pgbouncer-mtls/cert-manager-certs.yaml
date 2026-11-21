@@ -163,6 +163,7 @@ spec:
   usages:
     - server auth
   dnsNames:
+    - pg-eu-pooler-rw
     - pg-eu-pooler-rw.default.svc.cluster.local
   issuerRef:
     name: pg-eu-server-ca-issuer
