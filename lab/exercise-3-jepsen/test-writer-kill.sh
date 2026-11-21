@@ -30,6 +30,9 @@
 #   tar -cvf jepsen-test-${TEST_NAME}_$(date +%Y%m%d_%H%M%S).tar jepsen-test-${TEST_NAME}/
 #
 
+# Set TEST_RUNS=1 for one complete workload; zero repeats until interrupted.
+TEST_RUNS=${TEST_RUNS:-0}
+[[ $TEST_RUNS =~ ^(0|[1-9][0-9]*)$ ]] || { echo "Invalid TEST_RUNS" >&2; exit 2; }
 MIN_SECONDS_BETWEEN_KILLS=${MIN_SECONDS_BETWEEN_KILLS:-10}           # minimum time between kills
 #MIN_HEALTHY_REPLICAS_FOR_KILL=1             # don't kill until these replicas are healthy; default will auto-detect count of all replicas
 
@@ -51,14 +54,14 @@ git status
 git diff
 
 # delete the cluster in the us region
-kubectl delete cluster pg-us --context kind-k8s-us
+kubectl delete cluster pg-us --context kind-k8s-us --ignore-not-found
 
 # use the cluster in the eu region
 kubectl config use-context kind-k8s-eu
 
 # quick ping test to check latency between nodes
 kubectl run pingtest --image busybox:1.36 --overrides='{"spec": {"nodeName": "k8s-eu-worker3"}}' \
-              --restart=Never --rm -it -- ping -c 5 k8s-eu-worker4 || exit
+              --restart=Never --rm --attach -- ping -c 5 k8s-eu-worker4 || exit
 
 # trigger download of the container image; kill job once download is complete
 kubectl replace --force -f lab/exercise-3-jepsen/jepsen-job.yaml
@@ -70,7 +73,7 @@ kubectl delete cluster pg-eu
 lab/object-store.sh eu rm --recursive --force lab/backups/pg-eu
 
 test_number=1
-while true; do
+while (( TEST_RUNS == 0 || test_number <= TEST_RUNS )); do
   echo "Setting up test $test_number at $(date)"
 
   # wait up to 2 minutes until there are no terminating CNPG cluster pods or jepsen job pods
@@ -86,7 +89,7 @@ while true; do
   kubectl wait --timeout 30m --for=condition=Ready cluster/pg-eu
 
   if [ -z "$MIN_HEALTHY_REPLICAS_FOR_KILL" ]; then
-    MIN_HEALTHY_REPLICAS_FOR_KILL=$(kubectl get pod -l role=replica | grep pg-eu | wc -l)
+    MIN_HEALTHY_REPLICAS_FOR_KILL=$(kubectl get cluster pg-eu -o json | jq '.spec.instances - 1')
     echo "Auto-detected $MIN_HEALTHY_REPLICAS_FOR_KILL healthy replicas"
   fi
 
@@ -129,11 +132,15 @@ while true; do
     sleep 1
   done
 
-  # get the output of the test
-  kubectl get pod -l job-name=jepsenpg -o jsonpath='{.items[0].status.containerStatuses[0].state.terminated.message}{"\n"}'
-
-  # forcibly delete the pod, in case jepsen somehow hangs (unlikely, but just in case)
+  # Preserve the checker verdict and distinguish it from a job that never ran.
+  result=$(kubectl get pod -l job-name=jepsenpg -o jsonpath='{.items[0].status.containerStatuses[0].state.terminated.message}')
+  printf '%s\n' "$result"
   kubectl delete pod -l job-name=jepsenpg --grace-period=0 --force --wait=false
+
+  if (( TEST_RUNS > 0 )) && [[ "$jepsen_job_status" != True || -z "$result" ]]; then
+    echo "Jepsen did not produce a completed workload verdict" >&2
+    exit 1
+  fi
 
   test_number=$((test_number + 1))
 done

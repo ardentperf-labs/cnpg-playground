@@ -105,10 +105,13 @@ continuously kill the current primary pod (waiting for replicas to recover and m
 at least 10 seconds between each kill).
 
 ```bash
-REPLICA_COUNT=$(kubectl get pod -l role=replica | grep pg-eu | wc -l)
+REPLICA_COUNT=$(k get cluster pg-eu -o json | jq '.spec.instances - 1')
 while true; do
-  until (( $(k get pod -l role=replica | grep 1/1 | wc -l) == $REPLICA_COUNT)); do sleep 1; done
-  k delete pod -l role=primary --grace-period=0 --force --wait=false |& egrep -v '(Warn|found)' && date && sleep 10
+  until k get pods -l 'cnpg.io/cluster=pg-eu,role=replica' -o json |
+    jq -e --argjson expected "$REPLICA_COUNT" \
+      '[.items[] | select(any(.status.conditions[]?; .type=="Ready" and .status=="True"))] | length == $expected' >/dev/null
+  do sleep 1; done
+  k delete pod -l cnpg.io/cluster=pg-eu,role=primary --grace-period=0 --force --wait=false |& egrep -v '(Warn|found)' && date && sleep 10
 done
 ```
 
@@ -324,10 +327,13 @@ k replace --force -f lab/exercise-3-jepsen/jepsen-job.yaml
 ```
 
 ```bash
-REPLICA_COUNT=$(kubectl get pod -l role=replica | grep pg-eu | wc -l)
+REPLICA_COUNT=$(k get cluster pg-eu -o json | jq '.spec.instances - 1')
 while true; do
-  until (( $(k get pod -l role=replica | grep 1/1 | wc -l) == $REPLICA_COUNT)); do sleep 1; done
-  k delete pod -l role=primary --grace-period=0 --force --wait=false |& egrep -v '(Warn|found)' && date && sleep 10
+  until k get pods -l 'cnpg.io/cluster=pg-eu,role=replica' -o json |
+    jq -e --argjson expected "$REPLICA_COUNT" \
+      '[.items[] | select(any(.status.conditions[]?; .type=="Ready" and .status=="True"))] | length == $expected' >/dev/null
+  do sleep 1; done
+  k delete pod -l cnpg.io/cluster=pg-eu,role=primary --grace-period=0 --force --wait=false |& egrep -v '(Warn|found)' && date && sleep 10
 done
 ```
 
@@ -355,4 +361,5 @@ documents the cycles while considering the test successful.
 
 After you've learned how the test works, you can explore the `test-writer-kill.sh` script
 which can automatically run this test in a loop. You can leave that running for extended
-periods of time to confirm failure rates over a large number of iterations.
+periods of time to confirm failure rates over a large number of iterations. Use
+`TEST_RUNS=1 bash lab/exercise-3-jepsen/test-writer-kill.sh` to stop after one iteration.
