@@ -1,0 +1,55 @@
+---
+# Client certificate used by the pg-${REGION} Cluster to authenticate against
+# the klio-${REGION} Server, signed by that Server's own CA (see
+# klio/server.yaml).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: klio-${REGION}-client
+spec:
+  commonName: klio@pg-${REGION}
+  secretName: klio-${REGION}-client
+
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+
+  isCA: false
+  usages:
+    - client auth
+
+  issuerRef:
+    name: klio-${REGION}-ca
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: klio.cnpg.io/v1alpha1
+kind: PluginConfiguration
+metadata:
+  name: klio-pg-${REGION}
+spec:
+  clusterName: pg-${REGION}
+  serverAddress: klio-${REGION}.default
+  tls:
+    clientIdentity:
+      volume:
+        secret:
+          secretName: klio-${REGION}-client
+      certPath: tls.crt
+      keyPath: tls.key
+    serverCa:
+      volume:
+        secret:
+          secretName: klio-${REGION}-ca
+          items:
+            - key: ca.crt
+              path: ca.crt
+      path: ca.crt
+  # Number of most recent backups kept per tier
+  tier1:
+    retention:
+      latest: 2
+  tier2:
+    enableBackup: true
+    enableRecovery: true
+    retention:
+      latest: 4

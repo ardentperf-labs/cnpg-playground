@@ -1,66 +1,162 @@
 #!/usr/bin/env bash
+##
+## Copyright © contributors to CloudNativePG, established as
+## CloudNativePG a Series of LF Projects, LLC.
+##
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+##
+##     http://www.apache.org/licenses/LICENSE-2.0
+##
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+##
+## SPDX-License-Identifier: Apache-2.0
+##
+
 #
 # This script tears down the demo example for CloudNativePG.
 #
 # Note: This environment is for learning purposes only and should not be used
 # in production.
 #
-#
-# Copyright The CloudNativePG Contributors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
 
-set -ux
-
-git_repo_root=$(git rev-parse --show-toplevel)
+set -u
+[[ "${DEBUG:-false}" == "true" ]] && set -x
 
 # Source the common setup script
-source ${git_repo_root}/scripts/common.sh
+# shellcheck source=scripts/common.sh
+source "$(cd "$(dirname "$0")/.." && pwd)/scripts/common.sh"
 
-kube_config_path=${git_repo_root}/k8s/kube-config.yaml
-demo_yaml_path=${git_repo_root}/demo/yaml
+kube_config_path="${KUBE_CONFIG_PATH}"
+templates_dir="${TEMPLATES_DIR:-${REPO_ROOT}/demo/templates}"
+tmpl_klio_bucket_remove_job="${KLIO_BUCKET_REMOVE_JOB_TEMPLATE:-${templates_dir}/klio/bucket-remove-job.yaml}"
 
 # Setup a separate Kubeconfig
-cd "${git_repo_root}"
-export KUBECONFIG=${kube_config_path}
+cd "${REPO_ROOT}"
+export KUBECONFIG="${kube_config_path}"
 
-# Delete deployment, one region at a time
-for region in eu us; do
+# Detect or use the provided regions
+detect_running_regions "$@"
 
-   CONTEXT_NAME=$(get_cluster_context "${region}")
+for region in "${REGIONS[@]}"; do
 
-   # Delete the Postgres cluster
-   kubectl delete --context ${CONTEXT_NAME} --ignore-not-found=true -f \
-     ${demo_yaml_path}/${region}
+    CONTEXT_NAME=$(get_cluster_context "${region}")
 
-   # Delete Barman object stores
-   kubectl delete --context ${CONTEXT_NAME} --ignore-not-found=true -f \
-     ${demo_yaml_path}/object-stores
+    # Delete the Postgres cluster and its scheduled backup(s). The unqualified
+    # pg-${region}-backup name is legacy mode's; plugin mode names its own
+    # pg-${region}-barman-backup (Klio's pg-${region}-klio-backup, if
+    # present, is deleted in the Klio-specific block below)
+    kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true \
+        cluster/pg-${region} \
+        scheduledbackup/pg-${region}-backup \
+        scheduledbackup/pg-${region}-barman-backup
 
-   # Delete Barman Cloud Plugin
-   kubectl delete --context ${CONTEXT_NAME} --ignore-not-found=true -f \
-      https://github.com/cloudnative-pg/plugin-barman-cloud/releases/latest/download/manifest.yaml
+    # Delete the PodMonitor if Prometheus CRDs are present
+    if kubectl --context "${CONTEXT_NAME}" get crd podmonitors.monitoring.coreos.com &>/dev/null; then
+        kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true \
+            podmonitor/pg-${region}-podmonitor
+    fi
 
-   # Delete cert-manager
-   kubectl delete --context ${CONTEXT_NAME} --ignore-not-found=true -f \
-      https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+    # Delete the Klio Server, PluginConfiguration, and related cert-manager
+    # resources, plus the Klio Operator itself, if Klio was deployed here
+    if kubectl --context "${CONTEXT_NAME}" get crd servers.klio.cnpg.io &>/dev/null; then
+        kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true \
+            scheduledbackup/pg-${region}-klio-backup \
+            pluginconfiguration/klio-pg-${region} \
+            server/klio-${region} \
+            certificate/klio-${region}-tls \
+            certificate/klio-${region}-ca \
+            certificate/klio-${region}-client \
+            issuer/klio-${region}-ca \
+            issuer/klio-selfsigned-issuer \
+            secret/klio-${region}-encryption
 
-   # Delete CNPG operator
-   kubectl cnpg install generate --control-plane | \
-     kubectl --context ${CONTEXT_NAME} delete --ignore-not-found=true -f -
+        # Klio-alone's cross-region mesh (see demo/templates/klio/readonly-server.yaml):
+        # a read-only Server + PluginConfiguration + certs for every other
+        # region, all local to this cluster.
+        for r in "${REGIONS[@]}"; do
+            if [ "${r}" != "${region}" ]; then
+                kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true \
+                    pluginconfiguration/klio-pg-${r}-readonly \
+                    server/klio-${r}-readonly \
+                    certificate/klio-${r}-readonly-tls \
+                    certificate/klio-${r}-readonly-client
+            fi
+        done
 
-   # Remove backup data
-   docker exec minio-${region} rm -rf /data/backups/pg-${region}
+        if helm status klio-operator --kube-context "${CONTEXT_NAME}" --namespace cnpg-system &>/dev/null; then
+            helm uninstall klio-operator \
+                --kube-context "${CONTEXT_NAME}" --namespace cnpg-system
+        fi
+
+        # Helm does not remove CRDs on uninstall; delete them explicitly so a
+        # later setup.sh run doesn't mistake their presence for an already
+        # installed (but now absent) operator
+        kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true \
+            crd/servers.klio.cnpg.io \
+            crd/pluginconfigurations.klio.cnpg.io
+
+        # The Klio Server's StatefulSet retains its PVCs by default. Deleting
+        # them ensures a later setup.sh run starts from an empty tier1
+        # repository instead of reattaching to one recorded against a
+        # previous pg-${region} cluster's system ID (which fails WAL
+        # streaming with an "invalid system ID" error).
+        # The server/klio-${region} delete above only waits for that object
+        # itself, not its owned StatefulSet/Pods, so the PVCs may still be
+        # mounted here; bound the wait instead of risking an indefinite hang
+        # on the pvc-protection finalizer (a leftover PVC just gets cleaned
+        # up on the next teardown run).
+        kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true --timeout=60s \
+            pvc -l klio.cnpg.io/klio-server=klio-${region}
+        for r in "${REGIONS[@]}"; do
+            if [ "${r}" != "${region}" ]; then
+                kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true --timeout=60s \
+                    pvc -l klio.cnpg.io/klio-server=klio-${r}-readonly
+            fi
+        done
+
+        # Remove the klio bucket (tier 2 backup data) through the S3 API, via
+        # RustFS's own `rc` client run as an in-cluster Job, mirroring how
+        # deploy_klio_requirements creates it in demo/funcs_requirements.sh
+        # (see demo/templates/klio/bucket-init-job.yaml for why this isn't a
+        # local docker/podman exec)
+        kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true job/klio-bucket-remove
+        REGION="${region}" RUSTFS_RC_IMAGE="${RUSTFS_RC_IMAGE}" \
+            envsubst '${REGION} ${RUSTFS_RC_IMAGE}' <"${tmpl_klio_bucket_remove_job}" |
+            kubectl apply --context "${CONTEXT_NAME}" -f -
+        kubectl wait --context "${CONTEXT_NAME}" --for=condition=complete --timeout=60s job/klio-bucket-remove ||
+            kubectl logs --context "${CONTEXT_NAME}" job/klio-bucket-remove
+        kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true job/klio-bucket-remove
+    fi
+
+    # Delete the Barman ObjectStore CR, if the Barman Cloud Plugin CRDs are present
+    if kubectl --context "${CONTEXT_NAME}" get crd objectstores.barmancloud.cnpg.io &>/dev/null; then
+        kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true \
+            objectstore/objectstore-${region}
+    fi
+
+    # Delete Barman Cloud Plugin
+    kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true -f \
+        "https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/${BARMAN_CLOUD_PLUGIN_VERSION}/manifest.yaml"
+
+    # Delete cert-manager
+    kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true -f \
+        "https://github.com/cert-manager/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
+
+    # Delete the ClusterImageCatalog
+    kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true -f \
+        "${IMAGE_CATALOG_URL}"
+
+    # Delete CNPG operator
+    kubectl delete --context "${CONTEXT_NAME}" --ignore-not-found=true -f \
+        "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-${CNPG_RELEASE_BRANCH}/releases/cnpg-${CNPG_VERSION_BARE}.yaml"
+
+    # Remove backup data from the object store container
+    ${CONTAINER_PROVIDER} exec objectstore-${region} rm -rf /data/backups/pg-${region}
 
 done

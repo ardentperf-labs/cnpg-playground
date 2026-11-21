@@ -1,0 +1,32 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-${REGION}
+spec:
+  instances: 3
+
+  # See https://cloudnative-pg.io/documentation/current/scheduling/#isolating-postgresql-workloads
+  affinity:
+    nodeSelector:
+      node-role.kubernetes.io/postgres: ""
+    tolerations:
+    - key: node-role.kubernetes.io/postgres
+      operator: Exists
+      effect: NoSchedule
+    enablePodAntiAffinity: true
+    topologyKey: topology.kubernetes.io/zone
+    podAntiAffinityType: required
+
+  postgresql:
+    # See https://cloudnative-pg.io/documentation/current/postgresql_conf/#the-postgresql-section
+    parameters:
+      max_connections: '100'
+      log_checkpoints: 'on'
+      log_lock_waits: 'on'
+      pg_stat_statements.max: '10000'
+      pg_stat_statements.track: 'all'
+      hot_standby_feedback: 'on'
+      # Container images work fine with sysv shared memory
+      shared_memory_type: 'sysv'
+      dynamic_shared_memory_type: 'sysv'
+

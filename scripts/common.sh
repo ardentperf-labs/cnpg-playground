@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
+##
+## Copyright © contributors to CloudNativePG, established as
+## CloudNativePG a Series of LF Projects, LLC.
+##
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+##
+##     http://www.apache.org/licenses/LICENSE-2.0
+##
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+##
+## SPDX-License-Identifier: Apache-2.0
+##
+
 #
 # This script contains common variables and functions shared by the setup,
 # info, and cleanup scripts for the CloudNativePG playground.
-#
-#
-# Copyright The CloudNativePG Contributors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 #
 
 set -euo pipefail
@@ -26,17 +30,36 @@ set -euo pipefail
 K8S_CONTEXT_PREFIX=${K8S_CONTEXT_PREFIX-kind-}
 K8S_BASE_NAME=${K8S_NAME-k8s-}
 
-# MinIO Configuration
-MINIO_IMAGE="${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}"
-MINIO_BASE_NAME="${MINIO_BASE_NAME:-minio}"
-MINIO_BASE_PORT=${MINIO_BASE_PORT:-9001}
-MINIO_ROOT_USER="${MINIO_ROOT_USER:-cnpg}"
-MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-Cl0udNativePGRocks}"
+# RustFS Configuration
+# renovate: datasource=docker depName=rustfs/rustfs
+RUSTFS_VERSION="${RUSTFS_VERSION:-1.0.6}"
+RUSTFS_IMAGE="${RUSTFS_IMAGE:-rustfs/rustfs:${RUSTFS_VERSION}}"
+RUSTFS_BASE_NAME="${RUSTFS_BASE_NAME:-objectstore}"
+RUSTFS_BASE_PORT=${RUSTFS_BASE_PORT:-9001}
+RUSTFS_ROOT_USER="${RUSTFS_ROOT_USER:-cnpg}"
+RUSTFS_ROOT_PASSWORD="${RUSTFS_ROOT_PASSWORD:-Cl0udNativePGRocks}"
+# RustFS's own S3 CLI client, used to create/remove buckets through the S3
+# API. A bucket is not just a directory under RustFS's data root: creating
+# one by `mkdir`-ing that directory instead corrupts its data once RustFS
+# writes to it (https://github.com/orgs/rustfs/discussions/997).
+# renovate: datasource=docker depName=rustfs/rc
+RUSTFS_RC_VERSION="${RUSTFS_RC_VERSION:-v0.1.38}"
+RUSTFS_RC_IMAGE="${RUSTFS_RC_IMAGE:-rustfs/rc:${RUSTFS_RC_VERSION}}"
+
+# Optional pull-through registry cache for the Kind nodes (see
+# scripts/registry-cache.sh). Opt in with REGISTRY_CACHE=true on setup; the
+# cache survives teardown unless REMOVE_REGISTRY_CACHE=true is set.
+REGISTRY_CACHE="${REGISTRY_CACHE:-false}"
+REMOVE_REGISTRY_CACHE="${REMOVE_REGISTRY_CACHE:-false}"
+REGISTRY_CACHE_BASE_NAME="${REGISTRY_CACHE_BASE_NAME:-kind-registry-cache}"
+# renovate: datasource=docker depName=registry
+REGISTRY_CACHE_VERSION="${REGISTRY_CACHE_VERSION:-3.0.0}"
+REGISTRY_CACHE_IMAGE="${REGISTRY_CACHE_IMAGE:-registry:${REGISTRY_CACHE_VERSION}}"
 
 # --- Common Prerequisite Checks ---
-REQUIRED_COMMANDS="kind kubectl git grep sed"
+REQUIRED_COMMANDS="kind kubectl grep sed"
 for cmd in $REQUIRED_COMMANDS; do
-    if ! command -v "$cmd" &> /dev/null; then
+    if ! command -v "$cmd" &>/dev/null; then
         echo "❌ Error: Missing required command: $cmd"
         exit 1
     fi
@@ -46,7 +69,7 @@ done
 # Find a supported container provider
 CONTAINER_PROVIDER=""
 for provider in docker podman; do
-    if command -v "$provider" &> /dev/null; then
+    if command -v "$provider" &>/dev/null; then
         CONTAINER_PROVIDER=$provider
         break
     fi
@@ -58,8 +81,60 @@ if [ -z "${CONTAINER_PROVIDER:-}" ]; then
 fi
 
 # Determine project root and kubeconfig path
-GIT_REPO_ROOT=$(git rev-parse --show-toplevel)
-KUBE_CONFIG_PATH="${GIT_REPO_ROOT}/k8s/kube-config.yaml"
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck disable=SC2034 # used by demo/setup.sh and demo/teardown.sh
+KUBE_CONFIG_PATH="${REPO_ROOT}/k8s/kube-config.yaml"
 
-# source funcs_regions.sh
-source $(git rev-parse --show-toplevel)/scripts/funcs_regions.sh
+# Demo deployment versions
+# renovate: datasource=github-releases depName=cert-manager/cert-manager
+CERT_MANAGER_VERSION="${CERT_MANAGER_VERSION:-v1.21.3}"
+# renovate: datasource=github-releases depName=cloudnative-pg/cloudnative-pg
+CNPG_VERSION="${CNPG_VERSION:-v1.30.2}"
+# Derived: bare version and release branch suffix (e.g. v1.29.0 -> 1.29.0, 1.29)
+CNPG_VERSION_BARE="${CNPG_VERSION#v}"
+# shellcheck disable=SC2034 # used by demo/funcs_requirements.sh and demo/teardown.sh
+CNPG_RELEASE_BRANCH="${CNPG_VERSION_BARE%.*}"
+# renovate: datasource=github-releases depName=cloudnative-pg/plugin-barman-cloud
+BARMAN_CLOUD_PLUGIN_VERSION="${BARMAN_CLOUD_PLUGIN_VERSION:-v0.16.0}"
+# renovate: datasource=github-releases depName=cloudnative-pg/klio
+KLIO_VERSION="${KLIO_VERSION:-v0.0.21}"
+KLIO_CHART="${KLIO_CHART:-oci://ghcr.io/cloudnative-pg/klio-operator-chart}"
+# renovate: datasource=github-releases depName=grafana/grafana-operator
+GRAFANA_OPERATOR_VERSION="${GRAFANA_OPERATOR_VERSION:-v5.26.0}"
+# ClusterImageCatalog with common extensions (pg-crash, pgaudit, pgvector,
+# postgis, timescaledb-oss, wal2json); images are pinned by digest within the
+# file, so tracking the `main` branch is safe. See
+# https://github.com/cloudnative-pg/artifacts/tree/main/image-catalogs-extensions
+IMAGE_CATALOG_URL="${IMAGE_CATALOG_URL:-https://raw.githubusercontent.com/cloudnative-pg/artifacts/refs/heads/main/image-catalogs-extensions/catalog-minimal-trixie.yaml}"
+# Must match metadata.name in IMAGE_CATALOG_URL; referenced by Cluster.spec.imageCatalogRef
+IMAGE_CATALOG_NAME="${IMAGE_CATALOG_NAME:-postgresql-minimal-trixie}"
+
+# CSI hostpath driver + volume snapshot support.
+# scripts/csi-hostpath.sh applies the upstream kubernetes-csi single-node
+# deployment verbatim from these pinned versions, giving the playground a single
+# shared-storage (SAN-like) backend with volume snapshot support. It is deployed
+# as an available capability; the demo PostgreSQL clusters do not use it by
+# default (they keep the cluster's default StorageClass).
+# renovate: datasource=github-releases depName=kubernetes-csi/csi-driver-host-path
+CSI_DRIVER_HOST_PATH_VERSION="${CSI_DRIVER_HOST_PATH_VERSION:-v1.19.0}"
+# Directory under deploy/ in csi-driver-host-path holding the hostpath manifests.
+# Upstream names these after a Kubernetes version and drops old ones between
+# releases (kubernetes-1.34 was removed in v1.19.0). The default,
+# kubernetes-latest, is a symlink that scripts/csi-hostpath.sh resolves at run
+# time (raw.githubusercontent.com does not follow directory symlinks), so it
+# tracks upstream across version bumps. Set a real directory (e.g.
+# kubernetes-1.35) to pin it.
+CSI_DRIVER_HOST_PATH_DEPLOY_DIR="${CSI_DRIVER_HOST_PATH_DEPLOY_DIR:-kubernetes-latest}"
+# renovate: datasource=github-releases depName=kubernetes-csi/external-snapshotter
+EXTERNAL_SNAPSHOTTER_VERSION="${EXTERNAL_SNAPSHOTTER_VERSION:-v8.7.0}"
+# renovate: datasource=github-releases depName=kubernetes-csi/external-provisioner
+EXTERNAL_PROVISIONER_VERSION="${EXTERNAL_PROVISIONER_VERSION:-v6.4.0}"
+# renovate: datasource=github-releases depName=kubernetes-csi/external-attacher
+EXTERNAL_ATTACHER_VERSION="${EXTERNAL_ATTACHER_VERSION:-v4.13.0}"
+# renovate: datasource=github-releases depName=kubernetes-csi/external-resizer
+EXTERNAL_RESIZER_VERSION="${EXTERNAL_RESIZER_VERSION:-v2.3.0}"
+# renovate: datasource=github-releases depName=kubernetes-csi/external-health-monitor
+EXTERNAL_HEALTH_MONITOR_VERSION="${EXTERNAL_HEALTH_MONITOR_VERSION:-v0.19.0}"
+
+# shellcheck source=scripts/funcs_regions.sh
+source "${REPO_ROOT}/scripts/funcs_regions.sh"

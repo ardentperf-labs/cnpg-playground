@@ -21,6 +21,7 @@ on a Unix-based system:
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [The `cnpg` plugin for `kubectl`](https://cloudnative-pg.io/documentation/current/kubectl-plugin/)
 - [Kind](https://kind.sigs.k8s.io/)
+- [The `cmctl` tool](https://cert-manager.io/docs/reference/cmctl/)
 
 You don’t need superuser privileges to run the scripts, but elevated
 permissions may be required to install the prerequisites.
@@ -48,10 +49,10 @@ These tools streamline working with the CNPG Playground.
 
 ## Local Environment Overview
 
-This environment emulates a two-region infrastructure (EU and US), with each
-region containing:
+This environment emulates a two-region infrastructure (EU for Europe and NA
+for North America), with each region containing:
 
-- An object storage service powered by [MinIO](https://min.io/) containers
+- An object storage service powered by [RustFS](https://rustfs.com/) containers
 - A Kubernetes cluster, deployed using [Kind](https://kind.sigs.k8s.io/),
   consisting of:
 
@@ -78,10 +79,10 @@ This playground environment is managed by three main scripts located in the
 ### Setting Up the Learning Environment
 
 The `setup.sh` script provisions the entire environment. By default, it creates
-two regional clusters: `eu` and `us`.
+two regional clusters: `eu` and `na`.
 
 ```bash
-# Create the default two-region environment (eu, us)
+# Create the default two-region environment (eu, na)
 ./scripts/setup.sh
 ```
 
@@ -94,6 +95,50 @@ arguments.
 
 # Create a single-region environment
 ./scripts/setup.sh local
+```
+
+### Configuration
+
+The following environment variables can be set before running `setup.sh` to
+override the default playground configuration:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RUSTFS_IMAGE` | `rustfs/rustfs:latest` | RustFS container image to use |
+| `RUSTFS_ROOT_USER` | `cnpg` | S3 access key for the RustFS instances |
+| `RUSTFS_ROOT_PASSWORD` | `Cl0udNativePGRocks` | S3 secret key for the RustFS instances |
+| `RUSTFS_BASE_PORT` | `9001` | Host port for the first RustFS console; increments by one per region |
+| `K8S_NAME` | `k8s-` | Base name used when creating Kind clusters |
+| `K8S_CONTEXT_PREFIX` | `kind-` | Prefix added to Kind cluster names to form kubectl context names |
+| `DEPLOY_CSI_HOSTPATH` | `false` | Deploy the single-node CSI hostpath driver with volume snapshot support |
+| `REGISTRY_CACHE` | `false` | Run pull-through registry caches (docker.io, ghcr.io, quay.io, registry.k8s.io) so images survive teardown |
+| `REMOVE_REGISTRY_CACHE` | `false` | On `teardown.sh`, also delete the registry caches and their cached images |
+
+Example:
+
+```bash
+RUSTFS_ROOT_USER=myuser RUSTFS_ROOT_PASSWORD=mypassword ./scripts/setup.sh
+```
+
+### Caching Images Across Teardowns (optional)
+
+Kind nodes pull images with their own containerd, so nothing is cached on the
+host and every new cluster downloads everything again. Set `REGISTRY_CACHE=true`
+to run one pull-through registry container per upstream registry
+(`docker.io`, `ghcr.io`, `quay.io`, `registry.k8s.io`) and point every node at
+them:
+
+```bash
+REGISTRY_CACHE=true ./scripts/setup.sh
+```
+
+The caches are backed by named volumes and are kept by `./scripts/teardown.sh`,
+so the next setup pulls from the local cache. The upstream registry stays as a
+fallback. The first run is as slow as before, since it fills the cache. To
+delete the caches too:
+
+```bash
+REMOVE_REGISTRY_CACHE=true ./scripts/teardown.sh
 ```
 
 ### Connecting to the Kubernetes Clusters
@@ -136,6 +181,48 @@ In this example:
 - Worker nodes have different roles, such as `infra` for infrastructure, `app`
   for application workloads, and `postgres` for PostgreSQL databases. Each node
   runs Kubernetes version `v1.34.0`.
+
+### Volume Snapshots (optional)
+
+The playground can optionally deploy the
+[CSI hostpath driver](https://github.com/kubernetes-csi/csi-driver-host-path)
+with volume snapshot support, so you can experiment with CloudNativePG's
+snapshot-based backup and recovery. It is **disabled by default** — enable it per
+region with:
+
+```bash
+DEPLOY_CSI_HOSTPATH=true ./scripts/setup.sh
+```
+
+The hostpath driver only works reliably when all volumes live on a single node
+(see [this comment on kubernetes-csi/csi-driver-host-path#651](https://github.com/kubernetes-csi/csi-driver-host-path/issues/651#issuecomment-4328654241):
+with a per-node deployment a snapshot restore can be scheduled onto a node that
+does not own the snapshot data and deadlocks). The playground therefore deploys
+the upstream **single-node** driver as-is. Its single plugin pod lands on one
+worker node, and every volume and snapshot lives there, so backup and restore
+always co-locate — at the cost of a single point of failure: there's no
+redundancy, and losing that node loses its data. It exposes a `csi-hostpath-sc`
+StorageClass and a `csi-hostpath-snapclass` VolumeSnapshotClass.
+
+The driver is provided as an **available capability** — the demo clusters do not
+use it and keep the default StorageClass. **It only supports a single-instance
+Cluster**: since every volume lives on the plugin's one node, CloudNativePG's
+required cross-node pod anti-affinity (used by the demo clusters, see
+`demo/templates/cluster.yaml`) cannot be satisfied with `instances` greater than
+1. To exploit it, deploy your own single-instance cluster using
+`storageClass: csi-hostpath-sc`, scheduled (via `nodeSelector`) onto the node
+running the plugin — find it with:
+
+```bash
+kubectl get pods -n default -l app.kubernetes.io/name=csi-hostpathplugin -o wide
+```
+
+For example, deploy only the CloudNativePG requirements and then create your own
+cluster:
+
+```bash
+REQUIREMENTS_ONLY=true ./demo/setup.sh
+```
 
 ### Cleaning Up the Environment
 
@@ -181,7 +268,9 @@ To help you get started, we've included a demo scenario that showcases the
 This walkthrough guides you through deploying a **PostgreSQL cluster
 distributed across two regions** within the playground. The symmetric
 architecture also includes **continuous backup** using the
-[Barman Cloud Plugin](https://cloudnative-pg.io/plugin-barman-cloud/).
+[Barman Cloud Plugin](https://cloudnative-pg.io/plugin-barman-cloud/), with
+optional multi-tier backup and recovery through the
+[Klio Operator](https://github.com/cloudnative-pg/klio).
 
 For complete instructions and supporting resources, refer to the
 [demo folder](./demo/README.md).
@@ -196,7 +285,7 @@ control plane nodes in both Kubernetes clusters, execute the following
 commands:
 
 ```bash
-for region in eu us; do
+for region in eu na; do
    kubectl cnpg install generate --control-plane | \
       kubectl --context kind-k8s-${region} apply -f - --server-side
 
@@ -206,7 +295,7 @@ done
 ```
 
 These commands will deploy the CloudNativePG operator with server-side apply on
-both the `kind-k8s-eu` and `kind-k8s-us` clusters.
+both the `kind-k8s-eu` and `kind-k8s-na` clusters.
 
 Ensure that you have the latest version of the `cnpg` plugin installed on your
 local machine.

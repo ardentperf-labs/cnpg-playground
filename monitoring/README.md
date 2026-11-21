@@ -11,7 +11,7 @@ and deploys the dashboard on top of your existing playground environment.
 ## Setup
 
 To install monitoring components for the environment you previously created (by
-default consisting of two regions: `eu` and `us`), simply run:
+default consisting of two regions: `eu` and `na`), simply run:
 
 ```bash
 ./setup.sh
@@ -31,6 +31,25 @@ The script will automatically deploy Prometheus, Grafana, and the CloudNativePG 
 
 ---
 
+## Configuration
+
+The following environment variables can be set to override defaults:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `K8S_CONTEXT_PREFIX` | `kind-` | Prefix of kubectl context names; override when targeting non-Kind clusters |
+| `K8S_NAME` | `k8s-` | Base name of clusters in kubectl context names |
+
+These are useful when deploying monitoring against existing Kubernetes clusters
+rather than the Kind clusters created by `scripts/setup.sh`. For example, if
+your contexts are named `eu` and `na`, set both to empty strings:
+
+```bash
+K8S_CONTEXT_PREFIX="" K8S_NAME="" ./monitoring/setup.sh eu na
+```
+
+---
+
 ## Accessing the Dashboard
 
 Once installation completes, you can access Grafana via port forwarding.
@@ -39,7 +58,7 @@ For the default two-region environment, they look similar to:
 
 ```bash
 kubectl port-forward service/grafana-service 3001:3000 -n grafana --context kind-k8s-eu
-kubectl port-forward service/grafana-service 3002:3000 -n grafana --context kind-k8s-us
+kubectl port-forward service/grafana-service 3002:3000 -n grafana --context kind-k8s-na
 ```
 
 After forwarding the port, open your browser at:
