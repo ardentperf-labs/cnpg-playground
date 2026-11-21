@@ -71,7 +71,7 @@ fi
 echo "  ✓ psql client is available"
 
 # pg-eu cluster ready
-if ! kubectl wait --timeout 2m --for=condition=Ready cluster/pg-eu &>/dev/null; then
+if ! kubectl wait --timeout 10m --for=condition=Ready cluster/pg-eu &>/dev/null; then
   echo "ERROR: pg-eu cluster is not ready. Ensure Exercise 2 is complete."
   exit 1
 fi
@@ -97,20 +97,22 @@ python3 lab/patch-cluster.py lab/generated/pg-eu.yaml lab/exercise-9-bluebox-ash
 kubectl --context kind-k8s-eu apply -f lab/generated/pg-eu.yaml
 
 echo "Waiting for pg-eu pods to be ready (rolling restart, may take several minutes)..."
-kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+kubectl wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu,cnpg.io/podRole=instance
 kubectl wait --timeout 5m  --for=condition=Ready cluster/pg-eu
 echo "pg-eu cluster is ready"
 echo ""
 
 # Verify PostGIS extension is available (not yet installed, just available)
 echo "Verifying PostGIS is available in pg-eu..."
-POSTGIS_AVAILABLE=$(kubectl cnpg psql pg-eu -- -qAt \
-  -c "SELECT count(*) FROM pg_available_extensions WHERE name='postgis'" 2>/dev/null || echo "0")
-if [ "$POSTGIS_AVAILABLE" = "0" ] || [ -z "$POSTGIS_AVAILABLE" ]; then
-  echo "ERROR: PostGIS extension is not available. Check that the extension container image was pulled."
-  echo "  Try: kubectl describe pod -l cnpg.io/cluster=pg-eu"
-  exit 1
-fi
+deadline=$((SECONDS + 600))
+until kubectl cnpg psql pg-eu -- -qAt \
+  -c "SELECT 1 FROM pg_available_extensions WHERE name='postgis'" 2>/dev/null | grep -qx 1; do
+  if (( SECONDS >= deadline )); then
+    echo "Timed out waiting for the updated primary to expose PostGIS" >&2
+    exit 1
+  fi
+  sleep 5
+done
 echo "  ✓ PostGIS is available as an extension"
 echo ""
 
@@ -144,10 +146,8 @@ echo ""
 WAIT_LIMIT=1200  # 20 minutes
 WAITED=0
 while true; do
-  # pg_isready succeeds during init while init scripts are still running.
-  # We also check that the rental table has rows, which only happens after
-  # all init scripts (including the backfill) have completed.
-  if docker exec "$CONTAINER_NAME" pg_isready -U postgres -d bluebox -q 2>/dev/null; then
+  # The image's temporary initialization server listens only on a Unix socket.
+  if docker exec "$CONTAINER_NAME" pg_isready -h 127.0.0.1 -U postgres -d bluebox -q 2>/dev/null; then
     RENTAL_ROWS=$(docker exec "$CONTAINER_NAME" \
       psql -U postgres -d bluebox -qAt -c "SELECT count(*) FROM bluebox.rental" 2>/dev/null || echo "0")
     if [ "$RENTAL_ROWS" -gt 0 ] 2>/dev/null; then
@@ -219,7 +219,7 @@ if [ "$SKIP_LOAD" = false ]; then
   docker exec "$CONTAINER_NAME" \
     pg_dump -U postgres -d bluebox --no-owner --no-acl \
     | kubectl exec -i "$PRIMARY_POD" -- \
-        psql -U postgres -d bluebox
+        psql -v ON_ERROR_STOP=1 -U postgres -d bluebox
 
   echo ""
   echo "  ✓ Restore complete"
@@ -250,7 +250,8 @@ POSTGIS_INSTALLED=$(kubectl cnpg psql pg-eu -- -d bluebox -qAt \
 if [ "$POSTGIS_INSTALLED" = "1" ]; then
   echo "  ✓ PostGIS extension is installed in the bluebox database"
 else
-  echo "  WARNING: PostGIS not found in bluebox database — schema restore may have had issues"
+  echo "PostGIS is missing from the restored bluebox database" >&2
+  exit 1
 fi
 echo ""
 
@@ -289,6 +290,7 @@ else
   echo "  Checking pod status for errors..."
   kubectl get pods -l "job-name=$TEST_JOB" 2>/dev/null
   kubectl logs "job/$TEST_JOB" 2>/dev/null | tail -10
+  exit 1
 fi
 kubectl delete job "$TEST_JOB" --ignore-not-found &>/dev/null
 echo ""

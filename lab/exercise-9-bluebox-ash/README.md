@@ -130,7 +130,7 @@ directory.
 
 ```bash
 k apply -f lab/generated/pg-eu.yaml
-k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu,cnpg.io/podRole=instance
 k wait --timeout 5m  --for=condition=Ready cluster/pg-eu
 ```
 
@@ -178,25 +178,24 @@ You will see the init scripts running in order:
 ```
 running /docker-entrypoint-initdb.d/01-create-roles-and-database.sql
 ...
-running /docker-entrypoint-initdb.d/09-backfill-rental-data.sql
+running /docker-entrypoint-initdb.d/10-backfill-rental-data.sql
 ```
 
-The backfill script (`09-backfill-rental-data.sql`) generates rental records
+The backfill script (`10-backfill-rental-data.sql`) generates rental records
 from the last date in the sample data through yesterday. This is the slowest
 step — **expect 5–15 minutes** depending on the gap.
 
 ### Wait for the container to be healthy
 
 ```bash
-until docker exec bluebox-loader pg_isready -U postgres -d bluebox -q; do
+until docker exec bluebox-loader pg_isready -h 127.0.0.1 -U postgres -d bluebox -q; do
   echo "Waiting for bluebox to be ready..."
   sleep 10
 done
 echo "Bluebox is ready"
 ```
 
-> **Note:** `pg_isready` returns success as soon as PostgreSQL accepts
-> connections, which happens only after all init scripts complete. If the
+> The image enables TCP connections after its initialization scripts finish. If the
 > container exits with an error, check `docker logs bluebox-loader`.
 
 ## Step 3: Load Bluebox into pg-eu
@@ -460,7 +459,7 @@ To revert the PostGIS extension container patch:
 ```bash
 lab/render.sh
 k apply -f lab/generated/pg-eu.yaml
-k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+k wait --timeout 10m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu,cnpg.io/podRole=instance
 ```
 
 ## Automation Script
