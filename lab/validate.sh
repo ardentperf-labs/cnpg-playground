@@ -18,6 +18,7 @@ for region in eu us; do
     actual=$(kubectl --context "$context" exec "$primary" -c postgres -- \
         psql -U postgres -Atc 'SELECT pg_is_in_recovery()')
     [[ "$actual" == "$expected" ]]
+    kubectl --context "$context" get "podmonitor/pg-$region-podmonitor"
     kubectl --context "$context" get pods -A
     echo "PASS: $region API, nodes, PostgreSQL and recovery role"
 done

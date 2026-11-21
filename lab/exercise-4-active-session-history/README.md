@@ -94,6 +94,7 @@ Wait for all pods to be ready:
 
 ```bash
 k wait --timeout 5m --for=condition=Ready pod -l cnpg.io/cluster=pg-eu
+k wait --timeout 5m --for=condition=Ready cluster/pg-eu
 ```
 
 ### Create the SQL Functions
@@ -186,7 +187,7 @@ To import the dashboard:
 
 7. Click "Import"
 
-The dashboard will open automatically after import.
+The dashboard opens automatically after import. Select **Last 5 minutes** to view the workload below.
 
 ## Generating Workload with pgbench
 
