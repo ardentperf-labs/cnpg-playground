@@ -84,8 +84,9 @@ kubectl config use-context $US_CONTEXT > /dev/null
 
 # Export and import only the Root CA secret from EU to US
 echo "Copying Root CA (pg-eu-root-ca)..."
-kubectl --context=$EU_CONTEXT get secret pg-eu-root-ca -o yaml | \
-    kubectl --context=$US_CONTEXT apply -f - 2>/dev/null || true
+kubectl --context=$EU_CONTEXT get secret pg-eu-root-ca -o json | \
+    jq '{apiVersion,kind,metadata:{name:.metadata.name},type,data}' | \
+    kubectl --context=$US_CONTEXT apply -f -
 echo "✓ Root CA copied to US cluster"
 echo ""
 
@@ -117,7 +118,7 @@ kubectl --context kind-k8s-us apply -f lab/generated/pg-us.yaml
 echo "Waiting for pg-us cluster to be ready (this may take several minutes)..."
 kubectl wait --timeout=10m --for=condition=Ready cluster/pg-us
 # Wait for running pods (not completed init pods)
-kubectl wait --timeout=5m --for=condition=Ready pod -l cnpg.io/cluster=pg-us,role=instance 2>/dev/null || true
+kubectl wait --timeout=5m --for=condition=Ready pod -l cnpg.io/cluster=pg-us,cnpg.io/podRole=instance
 echo "✓ pg-us cluster ready in US cluster"
 echo ""
 
@@ -162,53 +163,13 @@ echo "Step 8: Testing cross-cluster mTLS connection..."
 echo "Testing: US cluster client -> EU cluster PgBouncer (like replication does)"
 echo ""
 
-# Get PgBouncer service details from EU cluster
-kubectl config use-context $EU_CONTEXT > /dev/null
-PGBOUNCER_SERVICE=$(kubectl get svc pg-eu-pooler-rw -o jsonpath='{.metadata.name}')
-PGBOUNCER_IP=$(kubectl get svc pg-eu-pooler-rw -o jsonpath='{.spec.clusterIP}')
-PGBOUNCER_PORT=$(kubectl get svc pg-eu-pooler-rw -o jsonpath='{.spec.ports[0].port}')
-echo "  EU PgBouncer Service: $PGBOUNCER_SERVICE"
-echo "  Service IP: $PGBOUNCER_IP:$PGBOUNCER_PORT"
-
-# Get the actual pod IPs for direct access (like replication does)
-PGBOUNCER_POD=$(kubectl get pods -l cnpg.io/poolerName=pg-eu-pooler-rw -o jsonpath='{.items[0].metadata.name}')
-PGBOUNCER_POD_IP=$(kubectl get pod $PGBOUNCER_POD -o jsonpath='{.status.podIP}')
-echo "  PgBouncer Pod: $PGBOUNCER_POD"
-echo "  Pod IP: $PGBOUNCER_POD_IP:$PGBOUNCER_PORT"
-echo ""
-
-# Create an Endpoints resource in US cluster that points to EU PgBouncer
-# This mirrors how cross-cluster replication works
-kubectl config use-context $US_CONTEXT > /dev/null
-echo "  Creating cross-cluster service endpoint in US cluster..."
-
-cat <<EOF | kubectl apply -f -
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: pg-eu-pooler-rw-external
-spec:
-  ports:
-  - port: $PGBOUNCER_PORT
-    targetPort: $PGBOUNCER_PORT
-    protocol: TCP
-  clusterIP: None
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: pg-eu-pooler-rw-external
-subsets:
-- addresses:
-  - ip: $PGBOUNCER_POD_IP
-  ports:
-  - port: $PGBOUNCER_PORT
-    protocol: TCP
-EOF
-
-echo "  ✓ Cross-cluster endpoint created"
-echo ""
+# Reach the EU nodes through Kind's shared Docker network.
+kubectl --context kind-k8s-eu expose deployment pg-eu-pooler-rw \
+  --name=pg-eu-pooler-test --type=NodePort --port=5432 --target-port=5432 \
+  --dry-run=client -o yaml | kubectl --context kind-k8s-eu apply -f -
+PGBOUNCER_PORT=$(kubectl --context kind-k8s-eu get svc pg-eu-pooler-test -o jsonpath='{.spec.ports[0].nodePort}')
+PGBOUNCER_ADDR=$(kubectl --context kind-k8s-eu get node k8s-eu-control-plane -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+kubectl config use-context kind-k8s-us
 
 # Deploy test client in US cluster with pg-us client certificates
 echo "  Deploying test client in US cluster..."
@@ -236,6 +197,10 @@ spec:
       mountPath: /etc/secrets/ca
       readOnly: true
     env:
+    - name: PGHOSTADDR
+      value: "$PGBOUNCER_ADDR"
+    - name: PGCONNECT_TIMEOUT
+      value: "10"
     - name: PGSSLCERT
       value: /etc/secrets/client/tls.crt
     - name: PGSSLKEY
@@ -252,6 +217,8 @@ spec:
   - name: server-ca
     secret:
       secretName: pg-eu-root-ca
+      items:
+      - {key: tls.crt, path: ca.crt}
       defaultMode: 0440
 EOF
 
@@ -260,16 +227,19 @@ echo ""
 
 # Test connection using the cross-cluster service endpoint
 echo "  Testing mTLS connection from US to EU via service endpoint..."
-echo "  Target: pg-eu-pooler-rw-external (points to $PGBOUNCER_POD_IP)"
+echo "  Target: pg-eu-pooler-test at $PGBOUNCER_ADDR:$PGBOUNCER_PORT"
 echo ""
 
-CONNECT_RESULT=$(kubectl exec us-client-to-eu-pgbouncer -- psql \
-    -h pg-eu-pooler-rw-external \
+if ! CONNECT_RESULT=$(kubectl exec us-client-to-eu-pgbouncer -- psql \
+    -h pg-eu-pooler-rw.default.svc.cluster.local \
     -p "$PGBOUNCER_PORT" \
     -U app \
     -d app \
     -c "SELECT 'Cross-cluster mTLS SUCCESS!' AS result, current_database() AS database, inet_server_addr() AS server;" \
-    2>&1)
+    2>&1); then
+    echo "$CONNECT_RESULT" >&2
+    exit 1
+fi
 
 if echo "$CONNECT_RESULT" | grep -q "Cross-cluster mTLS SUCCESS"; then
     echo "✓ Cross-cluster mTLS connection successful!"
@@ -282,7 +252,8 @@ if echo "$CONNECT_RESULT" | grep -q "Cross-cluster mTLS SUCCESS"; then
     echo "  • Unified PKI enables seamless cross-cluster authentication"
 else
     echo "⚠ Cross-cluster connection failed or unexpected result:"
-    echo "$CONNECT_RESULT"
+    echo "$CONNECT_RESULT" >&2
+    exit 1
 fi
 echo ""
 
@@ -293,8 +264,7 @@ echo ""
 
 # Cleanup
 kubectl delete pod us-client-to-eu-pgbouncer --ignore-not-found=true 2>/dev/null
-kubectl delete service pg-eu-pooler-rw-external --ignore-not-found=true 2>/dev/null
-kubectl delete endpoints pg-eu-pooler-rw-external --ignore-not-found=true 2>/dev/null
+kubectl --context kind-k8s-eu delete service pg-eu-pooler-test --ignore-not-found=true
 echo "  ℹ Cleaned up test resources"
 echo ""
 

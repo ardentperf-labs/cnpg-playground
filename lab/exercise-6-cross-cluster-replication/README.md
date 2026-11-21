@@ -176,7 +176,8 @@ its own Intermediate CAs signed by this root:
 
 ```bash
 # Copy Root CA from EU to US cluster
-kubectl --context=kind-k8s-eu get secret pg-eu-root-ca -o yaml | \
+kubectl --context=kind-k8s-eu get secret pg-eu-root-ca -o json | \
+    jq '{apiVersion,kind,metadata:{name:.metadata.name},type,data}' | \
     kubectl --context=kind-k8s-us apply -f -
 ```
 
@@ -358,54 +359,20 @@ This test demonstrates the power of the unified PKI - a client in the US cluster
 can authenticate to PgBouncer in the EU cluster using certificates issued by
 different intermediate CAs.
 
-**Step 4a: Get PgBouncer Details from EU Cluster**
+**Expose the EU pooler to the US test client**
+
+The two Kind clusters use overlapping pod address ranges. Use a temporary NodePort
+on the shared Kind network. libpq connects to that address while checking the
+server certificate against the EU pooler's DNS name.
 
 ```bash
-# Switch to EU cluster
-kubectl config use-context kind-k8s-eu
-
-# Get PgBouncer pod IP
-PGBOUNCER_POD=$(kubectl get pods -l cnpg.io/poolerName=pg-eu-pooler-rw -o jsonpath='{.items[0].metadata.name}')
-PGBOUNCER_POD_IP=$(kubectl get pod $PGBOUNCER_POD -o jsonpath='{.status.podIP}')
-PGBOUNCER_PORT=5432
-
-echo "PgBouncer Pod: $PGBOUNCER_POD"
-echo "PgBouncer IP: $PGBOUNCER_POD_IP"
-```
-
-**Step 4b: Create Cross-Cluster Service Endpoint in US Cluster**
-
-Create a service in the US cluster that points to the EU PgBouncer pod:
-
-```bash
-# Switch to US cluster
+# Reach the EU nodes through Kind's shared Docker network.
+kubectl --context kind-k8s-eu expose deployment pg-eu-pooler-rw \
+  --name=pg-eu-pooler-test --type=NodePort --port=5432 --target-port=5432 \
+  --dry-run=client -o yaml | kubectl --context kind-k8s-eu apply -f -
+PGBOUNCER_PORT=$(kubectl --context kind-k8s-eu get svc pg-eu-pooler-test -o jsonpath='{.spec.ports[0].nodePort}')
+PGBOUNCER_ADDR=$(kubectl --context kind-k8s-eu get node k8s-eu-control-plane -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 kubectl config use-context kind-k8s-us
-
-# Create service and endpoint pointing to EU PgBouncer
-cat <<EOF | kubectl apply -f -
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: pg-eu-pooler-rw-external
-spec:
-  ports:
-  - port: $PGBOUNCER_PORT
-    targetPort: $PGBOUNCER_PORT
-    protocol: TCP
-  clusterIP: None
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: pg-eu-pooler-rw-external
-subsets:
-- addresses:
-  - ip: $PGBOUNCER_POD_IP
-  ports:
-  - port: $PGBOUNCER_PORT
-    protocol: TCP
-EOF
 ```
 
 **Step 4c: Deploy Test Client in US Cluster**
@@ -436,6 +403,10 @@ spec:
       mountPath: /etc/secrets/ca
       readOnly: true
     env:
+    - name: PGHOSTADDR
+      value: "$PGBOUNCER_ADDR"
+    - name: PGCONNECT_TIMEOUT
+      value: "10"
     - name: PGSSLCERT
       value: /etc/secrets/client/tls.crt
     - name: PGSSLKEY
@@ -452,6 +423,8 @@ spec:
   - name: server-ca
     secret:
       secretName: pg-eu-root-ca
+      items:
+      - {key: tls.crt, path: ca.crt}
       defaultMode: 0440
 EOF
 
@@ -464,7 +437,7 @@ kubectl --context=kind-k8s-us wait --timeout=60s --for=condition=Ready pod/us-cr
 ```bash
 # Connect from US client to EU PgBouncer
 kubectl --context=kind-k8s-us exec us-cross-cluster-client -- psql \
-  -h pg-eu-pooler-rw-external \
+  -h pg-eu-pooler-rw.default.svc.cluster.local \
   -p $PGBOUNCER_PORT \
   -U app \
   -d app \
@@ -497,8 +470,7 @@ You should see:
 
 ```bash
 kubectl --context=kind-k8s-us delete pod us-cross-cluster-client
-kubectl --context=kind-k8s-us delete service pg-eu-pooler-rw-external
-kubectl --context=kind-k8s-us delete endpoints pg-eu-pooler-rw-external
+kubectl --context kind-k8s-eu delete service pg-eu-pooler-test --ignore-not-found=true
 ```
 
 **What This Demonstrates:**
