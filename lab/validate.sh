@@ -14,7 +14,8 @@ for region in eu us; do
     kubectl --context "$context" wait cluster/pg-$region --for=condition=Ready --timeout=300s
     kubectl --context "$context" get cluster/pg-$region
     expected=f; [[ "$region" == us ]] && expected=t
-    actual=$(kubectl --context "$context" exec svc/pg-$region-rw -c postgres -- \
+    primary=$(kubectl --context "$context" get cluster/pg-$region -o jsonpath='{.status.currentPrimary}')
+    actual=$(kubectl --context "$context" exec "$primary" -c postgres -- \
         psql -U postgres -Atc 'SELECT pg_is_in_recovery()')
     [[ "$actual" == "$expected" ]]
     kubectl --context "$context" get pods -A

@@ -22,7 +22,7 @@
 #   2. Wait for the cluster to restart and be ready
 #   3. Create the sanitize_sql and pgsentinel_poll_ash_data functions
 #   4. Apply the Prometheus custom queries ConfigMap
-#   5. Initialize pgbench with scale factor 100
+#   5. Initialize pgbench with scale factor 10
 #   6. Run pgbench workload for 5 minutes
 #   7. Provide instructions for importing the Grafana dashboard
 #
@@ -63,17 +63,6 @@ if [ "$CURRENT_CONTEXT" != "kind-k8s-eu" ]; then
   echo "WARNING: Expected context 'kind-k8s-eu' but got '$CURRENT_CONTEXT'"
   echo "Switching context..."
   kubectl config use-context kind-k8s-eu
-fi
-echo ""
-
-# Optional: Delete the US cluster to free up resources
-echo "Checking for pg-us cluster..."
-if kubectl get cluster pg-us --context kind-k8s-us &>/dev/null; then
-  echo "Deleting pg-us cluster to free up CPU resources..."
-  kubectl delete cluster pg-us --context kind-k8s-us --wait=false || true
-  echo "Deletion initiated (running in background)"
-else
-  echo "pg-us cluster not found, skipping deletion"
 fi
 echo ""
 
@@ -128,30 +117,13 @@ echo ""
 
 # Initialize pgbench
 echo "=========================================="
-echo "Initializing pgbench with scale factor 100..."
-echo "This will create ~10 million rows and may take several minutes"
+echo "Initializing pgbench with scale factor ${PGBENCH_SCALE:-10}..."
+
 echo "=========================================="
 echo ""
-kubectl cnpg pgbench pg-eu -- -i --scale "${PGBENCH_SCALE:-100}"
-
-echo ""
-echo "Waiting for pgbench initialization to complete..."
-echo "Checking status every 10 seconds..."
-deadline=$((SECONDS + 600))
-while true; do
-  (( SECONDS < deadline )) || { echo "pgbench initialization timed out" >&2; exit 1; }
-  POD_STATUS=$(kubectl get pods -l cnpg.io/jobRole=pgbench -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "")
-  if [ "$POD_STATUS" = "Succeeded" ] || [ "$POD_STATUS" = "Completed" ]; then
-    echo "pgbench initialization complete"
-    break
-  elif [ "$POD_STATUS" = "Failed" ]; then
-    echo "ERROR: pgbench initialization failed"
-    kubectl get pods -l cnpg.io/jobRole=pgbench
-    exit 1
-  fi
-  sleep 10
-done
-echo ""
+job_prefix="ash-$(date +%s)"
+kubectl cnpg pgbench pg-eu --job-name "$job_prefix-init" -- -i --scale "${PGBENCH_SCALE:-10}"
+kubectl wait --for=condition=Complete "job/$job_prefix-init" --timeout=10m
 
 # Run pgbench workload
 echo "=========================================="
@@ -169,7 +141,8 @@ echo "Starting pgbench in 5 seconds..."
 sleep 5
 echo ""
 
-kubectl cnpg pgbench pg-eu -- --client=4 --jobs=4 --rate=100 --progress=1 --time="${PGBENCH_SECONDS:-300}"
+kubectl cnpg pgbench pg-eu --job-name "$job_prefix-load" -- --client=4 --jobs=4 --rate=100 --progress=1 --time="${PGBENCH_SECONDS:-300}"
+kubectl wait --for=condition=Complete "job/$job_prefix-load" --timeout=15m
 
 echo ""
 echo "=========================================="

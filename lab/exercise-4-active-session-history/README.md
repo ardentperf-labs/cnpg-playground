@@ -188,11 +188,11 @@ workload.
 
 ### Initialize the pgbench Database
 
-Initialize the pgbench schema with a scale factor of 100 (this creates tables
-with approximately 10 million rows):
+Initialize the pgbench schema with a scale factor of 10 (this creates tables
+with approximately one million rows):
 
 ```bash
-kc pgbench pg-eu -- -i --scale 100
+kc pgbench pg-eu -- -i --scale 10
 ```
 
 This will take several minutes to complete. Check the status with:

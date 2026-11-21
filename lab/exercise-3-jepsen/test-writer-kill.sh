@@ -101,7 +101,7 @@ while true; do
   loop_exit_time=$(date -d "7 minutes" +%s)
   while true; do
     # wait for both replicas to be ready
-    until (( $(kubectl get pod -l role=replica 2>&1 | grep 1/1 | wc -l) >= $MIN_HEALTHY_REPLICAS_FOR_KILL )); do
+    until (( $(kubectl get pod -l 'cnpg.io/cluster=pg-eu,role=replica' -o json | jq '[.items[] | select(any(.status.conditions[]?; .type=="Ready" and .status=="True"))] | length') >= $MIN_HEALTHY_REPLICAS_FOR_KILL )); do
       jepsen_job_status="$(kubectl get job jepsenpg -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')"
       if [ "$jepsen_job_status" == "True" ] || [ $(date +%s) -gt $loop_exit_time ]; then break; fi
       sleep 1
@@ -109,7 +109,7 @@ while true; do
     jepsen_job_status="$(kubectl get job jepsenpg -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')"
     if [ "$jepsen_job_status" == "True" ] || [ $(date +%s) -gt $loop_exit_time ]; then break; fi
     kubectl exec svc/pg-eu-rw -c postgres -- psql -Xc "select now(),pid,state,flush_lsn,flush_lag,sync_state,reply_time,ssn from pg_stat_replication right join current_setting('synchronous_standby_names') ssn on 1=1"
-    kubectl delete pod -l role=primary --grace-period=0 --force --wait=false |& egrep -v '(Warn|found)' && date && sleep $MIN_SECONDS_BETWEEN_KILLS
+    kubectl delete pod -l cnpg.io/cluster=pg-eu,role=primary --grace-period=0 --force --wait=false |& egrep -v '(Warn|found)' && date && sleep $MIN_SECONDS_BETWEEN_KILLS
   done
 
   # log message if jepsen job is not complete

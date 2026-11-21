@@ -103,7 +103,7 @@
         "y": 0
       },
       "id": 1,
-      "interval": "1m",
+      "interval": "5s",
       "maxDataPoints": 256,
       "options": {
         "legend": {
@@ -120,11 +120,11 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_DS_PROMETHEUS}"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
           "expr": "sum by($dimension) (cnpg_ash_avg_active_sessions{namespace=~\"$namespace\", pod=~\"$instances\", $filter_field=~\".*$filter_text.*\"})",
-          "legendFormat": "{{label_name}}",
+          "legendFormat": "{{$dimension}}",
           "range": true,
           "refId": "A"
         }
@@ -196,7 +196,7 @@
         "y": 10
       },
       "id": 2,
-      "interval": "1m",
+      "interval": "5s",
       "maxDataPoints": 256,
       "options": {
         "legend": {
@@ -216,7 +216,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_DS_PROMETHEUS}"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
           "expr": "max by($dimension) (cnpg_ash_max_by_${dimension}_cnt{namespace=~\"$namespace\", pod=~\"$instances\"})",

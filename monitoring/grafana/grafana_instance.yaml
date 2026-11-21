@@ -36,6 +36,8 @@ metadata:
     dashboards: "grafana"
 spec:
   config:
+    plugins:
+      preinstall_auto_update: "false"
     log:
       mode: "console"
     security:
