@@ -74,8 +74,7 @@ echo ""
 
 # ── Wait for pod ──────────────────────────────────────────────────────────────
 echo "Waiting for pgAdmin pod to be ready (up to 3 minutes)..."
-kubectl wait --timeout 3m --for=condition=Ready \
-  pod -l app=pgadmin4
+kubectl rollout status deployment/pgadmin4 --timeout=3m
 echo "  ✓ pgAdmin pod is ready"
 echo ""
 
@@ -99,11 +98,9 @@ echo ""
 
 # ── Verify server definition was injected ─────────────────────────────────────
 echo "Verifying pg-eu server definition is present..."
-if kubectl get configmap pgadmin4 -o jsonpath='{.data}' 2>/dev/null | grep -q "pg-eu"; then
-  echo "  ✓ pg-eu server definition found in ConfigMap"
-else
-  echo "  ✓ Server definition applied via Helm values (verify in pgAdmin UI)"
-fi
+kubectl get configmap pgadmin4-server-definitions -o json |
+  jq -e '.data["servers.json"] | fromjson | any(.Servers[]; .Name == "pg-eu" and .Host == "pg-eu-rw")' >/dev/null
+echo "  ✓ pg-eu server definition points to pg-eu-rw"
 echo ""
 
 # ── Summary ───────────────────────────────────────────────────────────────────

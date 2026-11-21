@@ -75,6 +75,7 @@
           - ca-certificates
           - git
           - jq
+          - postgresql-client
           - kubectx
           - btop
           - bat
